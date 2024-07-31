@@ -25,7 +25,7 @@ read_csv()
 # Explore data --------------------------------------------------------
 # Visualise distribution of mistletoe sizes
 
-# Convert 
+# Convert 2D area to log(area)
 
 # Visualise distribution of mistletoe heights
 
