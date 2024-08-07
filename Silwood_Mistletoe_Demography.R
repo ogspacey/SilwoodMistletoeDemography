@@ -22,6 +22,8 @@ read_csv()
 # Wrangle data ------------------------------------------------------------
 # Combine mistletoe demographic data and host data
 
+# Estimate distance to mistletoes (hypotenuse) to rectify size perception
+
 # Rectify size based on distance relative to base of tree (standard)
 # Tree143 has different distance in 2015
 
