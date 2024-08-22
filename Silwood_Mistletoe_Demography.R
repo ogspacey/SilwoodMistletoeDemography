@@ -20,8 +20,6 @@ mst_df_raw <- read.csv("mistletoe_data_raw.csv")
 hst_df_raw <- read.csv("host_metadata_raw.csv")
 
 # Wrangle data ------------------------------------------------------------
-# Remove bottom rows with NAs?
-
 # Remove hosts from host data frame which mistletoes were not measured in
 hst_df_raw <- filter(hst_df_raw, Host_ID %in% unique(mst_df_raw$Host_ID))
 
@@ -40,8 +38,8 @@ mst_hst_df <- select(mst_hst_df, -contains('Perim'))
 # Remove mistletoes that are never seen
 mst_hst_df <- filter(mst_hst_df, Notes != "Never seen")
 
-# DEAL WITH MULTI-CLUMP
-
+# Remove record from clump containing multiple individual (ID is longer than )
+mst_hst_df <- filter(mst_hst_df, nchar(Mistletoe_ID) == 4)
 
 ## Correct areas for distance and skew ----------------------------------------------------
 
@@ -96,7 +94,6 @@ shapiro.test(log(stacked_areas_df$Area))
 log_area_df <- adjusted_df
 log_area_df[,2:11] <- log(log_area_df[,2:11])
 colnames(log_area_df)[2:11] <- paste0("log", colnames(log_area_df)[2:11])
-
 
 ## Convert to long format --------------------------------------------------
 
@@ -291,8 +288,6 @@ P_no_fru <- no_non_fru/fru_sample_size
 long_uk_sex_df <- mutate(long_uk_sex_df,
                          P_uk_fem = P_uk_no_fru * P_fem / P_no_fru)
 
-# As a test, PREDICT PROBABILITY THAT KNOWN FEMALES WOULD BE FEMALE USING THIS METHOD
-
 # Test whether fruiting probability one year is linked to fruiting probability in previous year for a female
 # List known females
 known_females <- unique(known_fem_df$Indiv_ID)
@@ -313,6 +308,8 @@ observed_fru_mat <- matrix(c(table(fruit_t0_t1$fruit_effect)["both0"],  # Observ
                              table(fruit_t0_t1$fruit_effect)["both1"]), # Observed females fruiting t0, fruiting t1
                            nrow = 2, 
                            byrow = TRUE)
+colnames(observed_fru_mat) <- c("No_Fruit_t1", "Fruit_t1")
+rownames(observed_fru_mat) <- c("No_Fruit_t0", "Fruit_t0")
 
 # Expected transitions based on how many females observed to be fruiting
 no_non_fru_fem <- nrow(filter(fruit_t0_t1, Fruit_t0 == 0))
@@ -324,13 +321,57 @@ expected_fru_mat <- matrix(c(no_non_fru_fem * no_non_fru_fem / (no_fem * no_fem)
                              no_fru_fem * no_fru_fem / (no_fem * no_fem) * nrow(fruit_t0_t1)),         # Expected females fruiting t0, fruiting t1
                            nrow = 2, 
                            byrow = TRUE)
+colnames(expected_fru_mat) <- c("No_Fruit_t1", "Fruit_t1")
+rownames(expected_fru_mat) <- c("No_Fruit_t0", "Fruit_t0")
 
 # Perform Chi-square test for contingency
 chisq.test(observed_fru_mat, p = expected_fru_mat / sum(expected_fru_mat))
-# Individuals seen fruiting in one year more likely to be fruiting in next, cannot assume independent fruiting probability over years
+# Across females, individuals seen fruiting in one year also more likely to be fruiting in next
+# Fruit in t0 not independent of fruit in t1 across females
+# Seems that some females fruit a lot and others fruit less
 
-# Assuming fruiting probability of a female fruiting is independent between years, estimate probability that 
-  
+# For a given female, however, assume that probability of fruiting is constant
+# Probability that individual is female is the product of the probabilities of being female each year given fruit has not been observed
+uk_predict_sex_df <- long_uk_sex_df %>%
+                     group_by(Indiv_ID) %>%
+                     summarise(cumul_P_uk_fem = prod(P_uk_fem, na.rm = TRUE))
+
+# If no probability of being female is predicted, e.g., because logArea is missing, cumul_P_uk_fem will return 1
+# Assign their sex as unknown
+# If cumulative probability of being female > 0.5, assign female
+# If cumulative probability of being female < 0.5, assign female
+uk_predict_sex_df <- mutate(uk_predict_sex_df, 
+                            Assigned_sex = case_when(cumul_P_uk_fem == 1 ~ "Unknown",
+                                                     cumul_P_uk_fem < 1 & cumul_P_uk_fem > 0.5 ~ "Female",
+                                                     cumul_P_uk_fem < 0.5 ~ "Male"))
+
+# Combine unknown sex individuals with known females, create sex variable incorporating known and assigned sexes
+# Individuals which grow from juvenile to adult will be assigned Unknown sex as a juvenile
+long_sex_df <- full_join(long_sex_df, uk_predict_sex_df, by = "Indiv_ID")
+long_sex_df <- mutate(long_sex_df, Sex = case_when(Known_sex == "Female" & logArea >= min_size_rep ~ "Female",
+                                                   logArea < min_size_rep ~ "Unknown",
+                                      Known_sex == "Unknown" & Assigned_sex == "Female" ~ "Female",
+                                      Known_sex == "Unknown" & Assigned_sex == "Male" ~ "Male",
+                                      Known_sex == "Unknown" & Assigned_sex == "Unknown" ~ "Unknown"))
+
+# Create stage variable to separate juveniles and adults
+long_stage_df <- mutate(long_sex_df, 
+                        Stage = case_when(logArea < min_size_rep ~ "Juvenile",
+                                          is.na(logArea) == TRUE ~ "Unknown",
+                                          .default = "Adult"))
+
+# Remove Known_sex, N_fru_sampled, cumul_P_uk_fem, Assigned_sex variables
+wrangled_by_yr_df <- select(long_stage_df, -c(Known_sex, N_fru_sampled, cumul_P_uk_fem, Assigned_sex))
+
+# Create measurement ID to describe individual and year for wrangled data frame and original long data frame
+wrangled_by_yr_df$Measure_ID <- paste0(wrangled_by_yr_df$Indiv_ID, "_", wrangled_by_yr_df$Year)
+long_df$Measure_ID <- paste0(long_df$Indiv_ID, "_", long_df$Year_t0)
+
+# Add sex and stage to data frame describing transitions from t0 to t1
+wrangled_df <- full_join(long_df, wrangled_by_yr_df[, c("Sex", "Stage", "Measure_ID")])
+
+# RECALCULATE SEX RATIO
+
 # Explore data --------------------------------------------------------
 # Visualise distribution of mistletoe heights
 ggplot(data = mst_hst_df, aes(x = Combined_height)) +
@@ -362,12 +403,12 @@ ggplot(data = mst_hst_df, aes(x = Host_height, y = Combined_height)) +
 # Taller the host, higher up mistletoes generally are
 
 # Visualise distribution of host heights and species
-ggplot(data = hst_df_raw, aes(x = Host_height, fill = Genus_spp)) +
+ggplot(data = hst_df_raw, aes(x = Host_height, fill = Genus)) +
   geom_histogram()
 # Highly colinear - hard to separate effects
 
 # Visualise distribution of mistletoe heights and species
-ggplot(data = mst_hst_df, aes(x = Combined_height, fill = Genus_spp)) +
+ggplot(data = mst_hst_df, aes(x = Combined_height, fill = Genus)) +
   geom_histogram()
 # Highly colinear - hard to separate effects
 
@@ -391,43 +432,51 @@ ggplot(data = long_by_yr_df, aes(x = logArea)) +
 ggplot(data = long_by_yr_df, aes(x = logArea, y = Height)) +
   geom_point() +
   theme_bw()
-# Size not correlated with height
+# Size not correlated with height - CHECK IF WAS TRUE BEFORE DISTANCE CORRECTION
 
 
 # Construct and select models --------------------------------------------------------
 
 ## Model survival ----------------------------------------------------------
 # Create binary variable for survival 
-long_df <- mutate(long_df, Survive = case_when(
+wrangled_df <- mutate(wrangled_df, Survive = case_when(
   Status_t1 == "Dead" ~ 0,
   Status_t1 == "Surv" ~ 1
 ))
 
 # Plot survival against log(Area)
-ggplot(data = long_df, aes(x = logArea_t0, y = Survive)) +
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive, col = Sex)) +
   geom_point() +
   stat_smooth(method = "glm", 
-              method.args = list(family = binomial))
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+ggplot(data = wrangled_df, aes(x = Height, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
 
 # Initial model for survival
-log_reg_sur_1 <- glm(Survive ~ logArea_t0, data = long_df, family = binomial)
+log_reg_sur_1 <- glm(Survive ~ Height, data = wrangled_df, family = binomial)
 summary(log_reg_sur_1)
 
 ## Model growth ------------------------------------------------------------
 # Plot growth in time t1 against growth in time t0
-ggplot(data = long_df, aes(x = logArea_t0, y = logArea_t1)) +
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = logArea_t1, col = Sex)) +
   geom_point() +
   geom_abline(aes(intercept = 0, slope = 1)) +
   lims(x = c(0, max(long_df$logArea_t0)), y = c(0, max(long_df$logArea_t1))) +
   geom_smooth() +
-  theme_bw()
+  theme_bw() +
+  geom_vline(xintercept = min_size_rep)
 
 # Select model for growth
 
 ## Model fruiting ------------------------------------------------------
 
 # Select model for fruiting
-ggplot(data = long_by_yr_df, aes(x = logArea, y = Fruit)) +
+ggplot(data = adults_df, aes(x = logArea, y = Fruit)) +
   geom_point() +
   stat_smooth(method = "glm", 
               method.args = list(family = binomial))
