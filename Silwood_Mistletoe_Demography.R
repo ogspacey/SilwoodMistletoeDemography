@@ -378,6 +378,8 @@ each_adult_df <- filter(wrangled_df, Stage == "Adult") %>%
 sex_ratio <- nrow(filter(each_adult_df, Sex == "Male")) / nrow(each_adult_df)
 # Close to sex ratio predicted earlier - 0.46:0.54 M:F
 
+# Test effect of number of times sampled on probability of being male or female
+
 # Explore data --------------------------------------------------------
 # Visualise distribution of mistletoe heights
 ggplot(data = mst_hst_df, aes(x = Combined_height)) +
@@ -477,6 +479,8 @@ ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive)) +
               method.args = list(family = binomial)) +
   theme_bw()
 
+# HOW TO TREAT RANDOM EFFECTS
+
 # Model Survive ~ log(Area) with Indiv_ID as random effect
 sur_area_glmm <- glmer(Survive ~ logArea_t0 + (logArea_t0 | Indiv_ID), 
                      data = wrangled_df, family = binomial)
@@ -487,6 +491,7 @@ ggplot(data = wrangled_df, aes(x = Height, y = Survive)) +
   geom_point() +
   stat_smooth(method = "glm", 
               method.args = list(family = binomial)) +
+  labs(x = "Height above ground (m)", y = "Probability of survival to t1") +
   theme_bw()
 
 # Model Survive ~ Height with Indiv_ID as random effect
@@ -508,10 +513,11 @@ summary(sur_area_ht_glmm)
 # Height has slightly stronger relationship with survival than area
 
 # Plot Survival ~ log(Area) for different stages and sexes - juveniles given "Unknown" sex
-ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive, col = Sex)) +
+ggplot(data = filter(wrangled_df, is.na(Sex) == FALSE), aes(x = logArea_t0, y = Survive, col = Sex)) +
   geom_point() +
   stat_smooth(method = "glm", 
               method.args = list(family = binomial)) +
+  labs(x = "log(Area) in t0", y = "Probability of survival to t1") +
   theme_bw()
 
 # Filter wrangled data frame for adults only
@@ -561,7 +567,137 @@ sur_area_ht_sex_int_glmm <- glmer(Survive ~ logArea_t0 * Sex + Height + (logArea
                               data = wrangled_adults_df, family = binomial)
 summary(sur_area_ht_sex_int_glmm)
 
-# Survival depends on sex, therefore model juveniles, males and females separately
+# Survival depends on sex, therefore model juveniles, females and males separately
+# Filter wrangled data for juveniles only
+wrangled_juv_df <- filter(wrangled_df, 
+                          Stage == "Juvenile")
+
+# Filter wrangled data for females only
+wrangled_fem_df <- filter(wrangled_df, 
+                          Sex == "Female")
+
+# Filter wrangled data for males only
+wrangled_mal_df <- filter(wrangled_df, 
+                          Sex == "Male")
+
+
+### Juvenile survival -------------------------------------------------------
+
+# Plot Survival ~ log(Area) for juveniles
+ggplot(data = wrangled_juv_df, aes(x = logArea_t0, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ log(Area) for juveniles with Indiv_ID as random effect
+sur_juv_area_glmm <- glmer(Survive ~ logArea_t0 + (1 | Indiv_ID), 
+                           data = wrangled_juv_df, family = binomial)
+summary(sur_juv_area_glmm)
+
+# Plot Survival ~ Height for juveniles
+ggplot(data = wrangled_juv_df, aes(x = Height, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ Height for juveniles with Indiv_ID as random effect
+sur_juv_ht_glmm <- glmer(Survive ~ Height + (1 | Indiv_ID), 
+                           data = wrangled_juv_df, family = binomial)
+summary(sur_juv_ht_glmm)
+
+# Plot Survival ~ log(Area) + Height for juveniles
+ggplot(data = wrangled_juv_df, aes(x = logArea_t0, y = Survive, col = Height)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ log(Area) + Height for juveniles with Indiv_ID as random effect
+sur_juv_area_ht_glmm <- glmer(Survive ~ logArea_t0 + Height + (1 | Indiv_ID), 
+                           data = wrangled_juv_df, family = binomial)
+summary(sur_juv_area_ht_glmm)
+
+# Neither log(Area) nor height significantly predict juvenile survival
+
+### Female survival ---------------------------------------------------------
+# Plot Survival ~ log(Area) for females
+ggplot(data = wrangled_fem_df, aes(x = logArea_t0, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ log(Area) for females with Indiv_ID as random effect
+sur_fem_area_glmm <- glmer(Survive ~ logArea_t0 + (logArea_t0 | Indiv_ID), 
+                           data = wrangled_fem_df, family = binomial)
+summary(sur_fem_area_glmm)
+
+# Plot Survival ~ Height for females
+ggplot(data = wrangled_fem_df, aes(x = Height, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ Height for females with Indiv_ID as random effect
+sur_fem_ht_glmm <- glmer(Survive ~ Height + (Height | Indiv_ID), 
+                         data = wrangled_fem_df, family = binomial)
+summary(sur_fem_ht_glmm)
+
+# Plot Survival ~ log(Area) + Height for females
+ggplot(data = wrangled_fem_df, aes(x = logArea_t0, y = Survive, col = Height)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ log(Area) + Height for females with Indiv_ID as random effect
+sur_fem_area_ht_glmm <- glmer(Survive ~ logArea_t0 + Height + (1 | Indiv_ID), 
+                              data = wrangled_fem_df, family = binomial)
+summary(sur_fem_area_ht_glmm)
+
+# Survival is predicted by size for females
+
+### Male survival -----------------------------------------------------------
+# Plot Survival ~ log(Area) for males
+ggplot(data = wrangled_mal_df, aes(x = logArea_t0, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ log(Area) for males with Indiv_ID as random effect
+sur_mal_area_glmm <- glmer(Survive ~ logArea_t0 + (logArea_t0 | Indiv_ID), 
+                           data = wrangled_mal_df, family = binomial)
+summary(sur_mal_area_glmm)
+
+# Plot Survival ~ Height for males
+ggplot(data = wrangled_mal_df, aes(x = Height, y = Survive)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ Height for males with Indiv_ID as random effect
+sur_mal_ht_glmm <- glmer(Survive ~ Height + (Height | Indiv_ID), 
+                         data = wrangled_mal_df, family = binomial)
+summary(sur_mal_ht_glmm)
+
+# Plot Survival ~ log(Area) + Height for males
+ggplot(data = wrangled_mal_df, aes(x = logArea_t0, y = Survive, col = Height)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survival ~ log(Area) + Height for males with Indiv_ID as random effect
+sur_mal_area_ht_glmm <- glmer(Survive ~ logArea_t0 + Height + (1 | Indiv_ID), 
+                              data = wrangled_mal_df, family = binomial)
+summary(sur_mal_area_ht_glmm)
+
+# Survival is predicted by log(Area) in males
 
 ## Model growth ------------------------------------------------------------
 # Plot growth in time t1 against growth in time t0
@@ -595,32 +731,461 @@ ggplot(data = wrangled_df, aes(x = logArea_t0, y = Growth_t0_t1, col = Sex)) +
   geom_point() +
   geom_smooth(method = "lm") +
   theme_bw() +
-  geom_vline(xintercept = min_size_rep)
+  geom_vline(xintercept = min_size_rep) +
+  geom_hline(yintercept = 0)
 
 # Growth depends on sex, therefore model juveniles, males and females separately
 
+# HOW TO MODEL GROWTH - MODEL RELATIVE GROWTH AND RE-CONVERT?
+
+# MODEL SURVIVAL SEPARATELY FOR MATURING AND NON-MATURING
+
+# Split juveniles into those which matured (i.e., of reproductive size in t1) and those which did not
+wrangled_juv_df <- mutate(wrangled_juv_df, 
+                          Maturation = case_when()
+
+
+
+
+### Juvenile growth ---------------------------------------------------------
+
+
+### Female growth -----------------------------------------------------------
+
+
+### Male growth -------------------------------------------------------------
+
+
+
+
 ## Model fruiting ------------------------------------------------------
 # Filter wrangled data for females only
-wrangled_fem_df <- filter(wrangled_by_yr_df, 
+wrangled_fem_by_yr_df <- filter(wrangled_by_yr_df, 
                           Sex == "Female")
 
 # Plot fruiting ~ logArea for females only 
-ggplot(data = wrangled_fem_df, aes(x = logArea, y = Fruit)) +
+ggplot(data = wrangled_fem_by_yr_df, aes(x = logArea, y = Fruit)) +
   geom_point() +
   stat_smooth(method = "glm", 
-              method.args = list(family = binomial))
+              method.args = list(family = binomial)) +
+  labs(x = "log(Area) in t0", y = "Probability of fruiting in t0") +
+  theme_bw()
 
 # Model fruiting ~ logArea with Indiv_ID as random effect
-fru_area_glmm <- glmer(Fruit ~ logArea + (logArea | Indiv_ID), data = wrangled_fem_df, family = binomial)
+fru_area_glmm <- glmer(Fruit ~ logArea + (logArea | Indiv_ID), 
+                       data = wrangled_fem_by_yr_df, family = binomial)
 summary(fru_area_glmm)
 
+# Plot fruiting ~ Height for females only 
+ggplot(data = wrangled_fem_by_yr_df, aes(x = Height, y = Fruit)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  labs(x = "Height above ground (m)", y = "Probability of fruiting in t0") +
+  theme_bw()
+
 # Model fruiting ~ Height with Indiv_ID as random effect
-fru_area_glmm <- glmer(Fruit ~ logArea_t0 * Sex + Height + (logArea_t0 | Indiv_ID), 
-                                  data = wrangled_adults_df, family = binomial)
-summary(sur_area_ht_sex_int_glmm)
+fru_ht_glmm <- glmer(Fruit ~ Height + (Height | Indiv_ID), 
+                     data = wrangled_fem_by_yr_df, family = binomial)
+summary(fru_ht_glmm)
+
+# Plot fruiting ~ log(Area) + Height for females only 
+ggplot(data = wrangled_fem_by_yr_df, aes(x = logArea, y = Fruit, col = Height)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  labs(x = "log(Area) in t0", y = "Probability of fruiting in t0") +
+  theme_bw()
+
+# Model fruiting ~ logArea + Height with Indiv_ID as random effect
+fru_area_ht_glmm <- glmer(Fruit ~ logArea + Height + (logArea | Indiv_ID), 
+                     data = wrangled_fem_by_yr_df, family = binomial)
+summary(fru_area_ht_glmm)
+
+# Fruiting in females is predicted by both height and sex
+
 
 
 # Construct IPM -----------------------------------------------------------
+
+## How to incorporate height if selected?!
+
+# Function to calculate meshpoints
+calculate_mesh_points <- function(number_of_cells, min_size, max_size) {
+  # number of cells in the discretized kernel
+  n = number_of_cells
+  # Boundary points (the edges of the cells defining the kernel)
+  b = min_size + c(0:n) * (max_size-min_size) / n 
+  # Mesh points (midpoints of the cells)
+  y = 0.5 * (b[1:n] + b[2:(n+1)])
+  return(y)
+}
+
+# Juvenile meshpoints
+min_juv_area <- log(min(host_paras_rep_comb$Area, na.rm = TRUE))
+max_juv_area <- log(min_fem_area)
+J_meshpoints <- calculate_mesh_points(number_of_cells = 100,
+                                      min_size = min_juv_area,
+                                      max_size = max_juv_area)
+
+# Adult meshpoints
+min_adu_area <- log(min_fem_area)
+max_adu_area <- log(max(host_paras_rep_comb$Area, na.rm = TRUE))
+A_meshpoints <- calculate_mesh_points(number_of_cells = 100,
+                                      min_size = min_adu_area,
+                                      max_size = max_adu_area)
+
+
+# Function to calculate remain P kernels: JJ
+build_p_kernel_juv_remain <- function(y, growth_function, survival_function, mature_function, params) {
+  # Width of the cells
+  h = y[2] - y[1] 
+  G = h * outer(y, y, growth_function, params) # growth sub-kernel (which does not yet have survival in it)
+  S = survival_function(y, params) # survival 
+  M = mature_function(y, params) # probability of not remaining in the same stage (e.g, juv to juv or adu to adu)
+  kernel = G # placeholder; we're about to redefine P on the next line
+  n = length(y)
+  try(for(i in 1:n) kernel[,i] <- G[,i] * S[i] * (1-M[i]))  # growth/survival/remain sub-kernel
+  return(kernel)
+}
+
+# Function to calculate remain P kernels: FF, MM
+build_p_kernel_adult <- function(y, growth_function, survival_function, params) {
+  # Width of the cells
+  h = y[2] - y[1] 
+  G = h * outer(y, y, growth_function, params) # growth sub-kernel (which does not yet have survival in it)
+  S = survival_function(y, params) # survival 
+  kernel = G # placeholder; we're about to redefine P on the next line
+  n = length(y)
+  try(for(i in 1:n) kernel[,i] <- G[,i] * S[i])  # growth/survival sub-kernel
+  return(kernel)
+}
+
+# Function to calculate leave P kernels: FJ, MJ
+build_p_kernel_mature <- function(y0, y1, growth_function, survival_function, mature_function, sex_ratio, params) {
+  # Width of the cells
+  h = y0[2] - y0[1] 
+  G = h * outer(y1, y0, growth_function, params) # growth sub-kernel (which does not yet have survival in it)
+  S = survival_function(y0, params) # survival 
+  M = mature_function(y0, params) # probability of moving to a different stage (e.g, juv to adu or adu to juv)
+  n = length(y0)
+  kernel = G # placeholder; we're about to redefine P on the next line
+  try(for(i in 1:n) kernel[,i] <- G[,i] * S[i] * M[i] * sex_ratio)  # growth/survival/leave sub-kernel
+  return(kernel)
+}
+
+# Function to calculate F kernels: JF, JM
+build_f_kernel <- function(y0, y1, reprod_function, growth_function, mean_fec, params) {
+  # Width of the cells
+  h = y0[2] - y0[1] 
+  F = h * outer(y0, y1, reprod_function, params)
+  n = length(y1)
+  kernel = h * outer(y1, y0, growth_function, params) # placeholder; we're about to redefine F on the next line
+  try(for(i in 1:n) kernel[,i] <- 0.5 * F[,i] * mean_fec)  # growth/survival/leave sub-kernel
+  return(kernel)
+}
+
+# Function to build empty kernel: MF, FM
+build_empty_kernel <- function(y0, y1, growth_function, params) {
+  h = y0[2] - y0[1] 
+  n = length(y1)
+  kernel = h * outer(y1, y0, growth_function, params) # placeholder; we're about to redefine F on the next line
+  try(for(i in 1:n) kernel[,i] <- 0)  # growth/survival/leave sub-kernel
+  return(kernel)
+}
+
+
+#JJ: P Kernel for transitions from juvenile in time t to juvenile in time t+1
+#   JJ = f(juvenile survival x prob remaining juvenile x juvenile growth to juvenile)
+
+#FJ: P Kernel for transitions from juvenile in time t to female in time t+1
+#   FJ = f(juvenile survival x (1 - prob remaining juvenile) x sex ratio x juvenile growth to adult)
+
+#MJ: P Kernel for transitions from juvenile in time t to male in time t+1
+#   MJ = f(juvenile survival x (1 - prob remaining juvenile) x (1 - sex ratio) x juvenile growth to adult)
+
+#FF: P Kernel for transitions from female in time t to female in time t+1
+#   FF = f(female survival x adult growth to adult)
+
+#MM: P Kernel for transitions from male in time t to male in time t+1
+#   MM = f(male survival x adult growth to adult)
+
+#JF: F Kernel for transitions from female in time t to juvenile in time t+1
+#   JF = f(0.5 x female fruiting x mean number of offspring x offspring size distribution x offspring relative height distribution)
+
+#JM: F Kernel for transitions from female in time t to juvenile in time t+1
+#   JM = f(0.5 x female fruiting x mean number of offspring x offspring size distribution x offspring relative height distribution)
+
+
+## JJ: J -> J
+## JJ = f(juvenile survival x prob remaining juvenile x juvenile growth to juvenile)
+
+# Define functions for JJ p-kernel
+# 1. Probability of surviving
+survival_jj_function <- function(x,params) {
+  u = exp(params$juv.surv.int + params$juv.surv.slope * x)
+  return(u/(1+u))
+}
+
+# 2. Probability of maturing
+mature_jj_function <- function(x,params) {
+  u = exp(params$juv.mat.int + params$juv.mat.slope * x)
+  return(u/(1+u))
+}
+
+# 3. Growth function
+growth_jj_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$juv.growth.int + params$juv.growth.slope * x, 
+        sd = params$juv.growth.sd)
+}
+
+# Build the JJ P kernel
+JJ_kernel <- build_p_kernel_juv_remain(y = J_meshpoints,
+                                       growth_function = growth_jj_function,
+                                       survival_function = survival_jj_function,
+                                       mature_function = mature_jj_function,
+                                       params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+cols
+pal <- colorRampPalette(cols)
+image(JJ_meshpoints,JJ_meshpoints,t(log(JJ_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+abline(0,1, col = "black", lty=2)
+
+
+## FJ: J -> F
+## FJ = f(juvenile survival x (1 - prob remaining juvenile) x sex ratio x juvenile growth to adult)
+
+# Define functions for FJ p-kernel
+# 1. Probability of surviving same as for all juveniles
+survival_fj_function <- function(x,params) {
+  u = exp(params$juv.surv.int + params$juv.surv.slope * x)
+  return(u/(1+u))
+}
+
+# 2. Probability of maturing
+mature_fj_function <- function(x,params) {
+  u = exp(params$juv.mat.int + params$juv.mat.slope * x)
+  return(u/(1+u))
+}
+
+# 3. Growth function same as for all juveniles
+growth_fj_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$juv.growth.int + params$juv.growth.slope * x, 
+        sd = params$juv.growth.sd)
+}
+
+# Build the FJ P kernel
+FJ_kernel <- build_p_kernel_mature(y0 = J_meshpoints,
+                                   y1 = A_meshpoints,
+                                   growth_function = growth_fj_function,
+                                   survival_function = survival_fj_function,
+                                   mature_function = mature_fj_function,
+                                   sex_ratio = params$sex.ratio,
+                                   params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+cols
+pal <- colorRampPalette(cols)
+image(J_meshpoints,A_meshpoints,t(log(FJ_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+abline(0,1, col = "black", lty=2)
+
+## MJ: J -> M
+## MJ = f(juvenile survival x (1 - prob remaining juvenile) x (1 - sex ratio) x juvenile growth to adult)
+
+# Define functions for MJ p-kernel
+# 1. Probability of surviving same as for all juveniles
+survival_mj_function <- function(x,params) {
+  u = exp(params$juv.surv.int + params$juv.surv.slope * x)
+  return(u/(1+u))
+}
+
+# 2. Probability of maturing
+mature_mj_function <- function(x,params) {
+  u = exp(params$juv.mat.int + params$juv.mat.slope * x)
+  return(u/(1+u))
+}
+
+# 3. Growth function same as for all juveniles
+growth_mj_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$juv.growth.int + params$juv.growth.slope * x, 
+        sd = params$juv.growth.sd)
+}
+
+# Build the MJ P kernel
+MJ_kernel <- build_p_kernel_mature(y0 = J_meshpoints,
+                                   y1 = A_meshpoints,
+                                   growth_function = growth_fj_function,
+                                   survival_function = survival_fj_function,
+                                   mature_function = mature_fj_function,
+                                   sex_ratio = 1 - params$sex.ratio,
+                                   params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+cols
+pal <- colorRampPalette(cols)
+image(J_meshpoints,A_meshpoints,t(log(MJ_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+abline(0,1, col = "black", lty=2)
+
+
+## FF: F -> F
+## FF = f(female survival x adult growth to adult)
+# Define functions for FF p-kernel
+# 1. Probability of surviving
+survival_ff_function <- function(x,params) {
+  u = exp(params$fem.surv.int + params$adu.surv.slope.area * x) # ignore rht for now
+  return(u/(1+u))
+}
+
+# 2. Growth function
+growth_ff_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$adu.growth.int + params$adu.growth.slope * x, 
+        sd = params$adu.growth.sd)
+}
+
+# Build the FF P kernel
+FF_kernel <- build_p_kernel_adult(y = A_meshpoints,
+                                  growth_function = growth_ff_function,
+                                  survival_function = survival_ff_function,
+                                  params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+cols
+pal <- colorRampPalette(cols)
+image(A_meshpoints,A_meshpoints,t(log(FF_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+abline(0,1, col = "black", lty=2)
+
+## MM: M -> M
+## MM = f(male survival x adult growth to adult)
+# Define functions for MM p-kernel
+# 1. Probability of surviving
+survival_mm_function <- function(x,params) {
+  u = exp(params$male.surv.int + params$adu.surv.slope.area * x) # ignore rht for now
+  return(u/(1+u))
+}
+
+# 2. Growth function
+growth_mm_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$adu.growth.int + params$adu.growth.slope * x, 
+        sd = params$adu.growth.sd)
+}
+
+# Build the MM P kernel
+MM_kernel <- build_p_kernel_adult(y = A_meshpoints,
+                                  growth_function = growth_mm_function,
+                                  survival_function = survival_mm_function,
+                                  params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+cols
+pal <- colorRampPalette(cols)
+image(A_meshpoints,A_meshpoints,t(log(MM_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+abline(0,1, col = "black", lty=2)
+
+## JF: F -> J
+##  JF = f(0.5 x female fruiting x mean number of offspring x offspring size distribution x offspring relative height distribution)
+# Define functions for JF F kernel
+# 1. Reproduction function - Probability of Fruiting multiplied recruitment distribution
+reprod_jf_function <- function(xp,x,params) {
+  u = exp(params$fruit.int + params$fruit.slope * x)
+  (u/(1+u))*dnorm(xp, mean = params$recruit.size.mean, sd = params$recruit.size.sd)
+}
+
+# 2. Null growth distribution for growth - used as placeholder for kernel
+growth_jf_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$adu.growth.int + params$adu.growth.slope * x, 
+        sd = params$adu.growth.sd)
+}
+
+
+# Build the JF F kernel
+JF_kernel <- build_f_kernel(y0 = J_meshpoints,
+                            y1 = A_meshpoints,
+                            reprod_function = reprod_jf_function,
+                            growth_function = growth_jf_function,
+                            mean_fec = params$fec.mean,
+                            params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+cols
+pal <- colorRampPalette(cols)
+image(A_meshpoints,J_meshpoints,t(log(JF_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+abline(0,1, col = "black", lty=2)
+
+## JM: M -> J
+## JM = f(0.5 x female fruiting x mean number of offspring x offspring size distribution x offspring relative height distribution)
+# Define functions for JM F kernel
+# 1. Reproduction function - Probability of Fruiting multiplied recruitment distribution
+reprod_jm_function <- function(xp,x,params) {
+  u = exp(params$fruit.int + params$fruit.slope * x)
+  (u/(1+u))*dnorm(xp, mean = params$recruit.size.mean, sd = params$recruit.size.sd)
+}
+
+# 2. Null growth distribution for growth - used as placeholder for kernel
+growth_jm_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$adu.growth.int + params$adu.growth.slope * x, 
+        sd = params$adu.growth.sd)
+}
+
+# Build the JF F kernel
+JM_kernel <- build_f_kernel(y0 = J_meshpoints,
+                            y1 = A_meshpoints,
+                            reprod_function = reprod_jm_function,
+                            growth_function = growth_jm_function,
+                            mean_fec = params$fec.mean,
+                            params = params)
+
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+pal <- colorRampPalette(cols)
+image(A_meshpoints,J_meshpoints,t(log(JF_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+
+## MF: empty kernel
+# 1. Null growth distribution for growth - used as placeholder for kernel
+growth_mf_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$adu.growth.int + params$adu.growth.slope * x, 
+        sd = params$adu.growth.sd)
+}
+
+# Build empty MF kernel
+MF_kernel <- build_empty_kernel(y0 = A_meshpoints,
+                                y1 = A_meshpoints,
+                                growth_function = growth_mf_function,
+                                params = params)
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+pal <- colorRampPalette(cols)
+image(A_meshpoints,A_meshpoints,t(log(MF_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+
+## FM: empty kernel
+# 1. Null growth distribution for growth - used as placeholder for kernel
+growth_fm_function <- function(xp,x,params) { 			
+  dnorm(xp, mean = params$adu.growth.int + params$adu.growth.slope * x, 
+        sd = params$adu.growth.sd)
+}
+
+# Build empty MF kernel
+FM_kernel <- build_empty_kernel(y0 = A_meshpoints,
+                                y1 = A_meshpoints,
+                                growth_function = growth_fm_function,
+                                params = params)
+# Plot the kernel
+cols <- brewer.pal(9, "Blues")
+pal <- colorRampPalette(cols)
+image(A_meshpoints,A_meshpoints,t(log(FM_kernel+1)), xlab = "Log area (t)",ylab = "Log area (t+1)", col = pal(100))
+
+
+#### Putting it all together using cbind and rbind ####
+MJ_MF_MM <- cbind(MJ_kernel, MF_kernel, MM_kernel)
+FJ_FF_FM <- cbind(FJ_kernel, FF_kernel, FM_kernel)
+JJ_JF_JM <- cbind(JJ_kernel, JF_kernel, JM_kernel)
+IPM <- rbind(JJ_JF_JM, FJ_FF_FM, MJ_MF_MM)
 
 
 # Analyse IPM -------------------------------------------------------------
