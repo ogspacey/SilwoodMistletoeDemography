@@ -9,6 +9,7 @@ rm(list = ls())
 # Load packages
 library(ggplot2)   # Data visualisation
 library(tidyverse) # Data wrangling
+library(lme4)      # Regression models
 
 # Set working directory as required
 
@@ -82,7 +83,7 @@ ggplot(data = stacked_areas_df, aes(x = Area)) +
 ggplot(data = stacked_areas_df, aes(x = log(Area), fill = Year)) +
   geom_histogram() +
   theme_bw()
-# More normally distributed
+# More normally distributed, less skewed
 # No clear effect of particular years
 
 # Perform Shapiro-Wilk test for normality
@@ -370,7 +371,12 @@ long_df$Measure_ID <- paste0(long_df$Indiv_ID, "_", long_df$Year_t0)
 # Add sex and stage to data frame describing transitions from t0 to t1
 wrangled_df <- full_join(long_df, wrangled_by_yr_df[, c("Sex", "Stage", "Measure_ID")])
 
-# RECALCULATE SEX RATIO
+# Sex ratio = total males/all adults, counting each adult only once
+each_adult_df <- filter(wrangled_df, Stage == "Adult") %>%
+                 filter(Sex != "Unknown") %>%
+                 distinct(Indiv_ID, .keep_all = TRUE)
+sex_ratio <- nrow(filter(each_adult_df, Sex == "Male")) / nrow(each_adult_df)
+# Close to sex ratio predicted earlier - 0.46:0.54 M:F
 
 # Explore data --------------------------------------------------------
 # Visualise distribution of mistletoe heights
@@ -425,14 +431,34 @@ ggplot(data = par_lds_df, aes(x = Max_PL, fill = Genus)) +
 # Parasite load overlaps slightly between genera
 
 # Visualise distribution of mistletoe areas
-ggplot(data = long_by_yr_df, aes(x = logArea)) +
-  geom_histogram()
+ggplot(data = wrangled_by_yr_df, aes(x = logArea)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean_logArea - 3 * sd_logArea) +
+  geom_vline(xintercept = mean_logArea + 3 * sd_logArea)
+
+# Remove outliers +- 3SD
+mean_logArea <- mean(wrangled_by_yr_df$logArea, na.rm = TRUE)
+sd_logArea <- sd(wrangled_by_yr_df$logArea, na.rm = TRUE)
+wrangled_by_yr_df <- filter(wrangled_by_yr_df, 
+                            logArea > mean_logArea - 3 * sd_logArea & 
+                            logArea < mean_logArea + 3 * sd_logArea)
+
+wrangled_df <- filter(wrangled_df, 
+                      logArea_t0 > (mean_logArea - 3 * sd_logArea) & 
+                      logArea_t0 < (mean_logArea + 3 * sd_logArea))
+
+# Re-visualise distribution of mistletoe areas
+ggplot(data = wrangled_by_yr_df, aes(x = logArea)) +
+  geom_histogram() +
+  theme_bw()
 
 # Visualise relationship between areas and height
-ggplot(data = long_by_yr_df, aes(x = logArea, y = Height)) +
+ggplot(data = wrangled_by_yr_df, aes(x = logArea, y = Height)) +
   geom_point() +
   theme_bw()
 # Size not correlated with height - CHECK IF WAS TRUE BEFORE DISTANCE CORRECTION
+
+# Compare area and height before distance correction
 
 
 # Construct and select models --------------------------------------------------------
@@ -444,25 +470,109 @@ wrangled_df <- mutate(wrangled_df, Survive = case_when(
   Status_t1 == "Surv" ~ 1
 ))
 
-# Plot survival against log(Area)
-ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive, col = Sex)) +
+# Plot Survive ~ log(Area)
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive)) +
   geom_point() +
   stat_smooth(method = "glm", 
               method.args = list(family = binomial)) +
   theme_bw()
 
+# Model Survive ~ log(Area) with Indiv_ID as random effect
+sur_area_glmm <- glmer(Survive ~ logArea_t0 + (logArea_t0 | Indiv_ID), 
+                     data = wrangled_df, family = binomial)
+summary(sur_area_glmm)
+
+# Plot Survival ~ Height
 ggplot(data = wrangled_df, aes(x = Height, y = Survive)) +
   geom_point() +
   stat_smooth(method = "glm", 
               method.args = list(family = binomial)) +
   theme_bw()
 
-# Initial model for survival
-log_reg_sur_1 <- glm(Survive ~ Height, data = wrangled_df, family = binomial)
-summary(log_reg_sur_1)
+# Model Survive ~ Height with Indiv_ID as random effect
+sur_ht_glmm <- glmer(Survive ~ Height + (Height | Indiv_ID), 
+                        data = wrangled_df, family = binomial)
+summary(sur_ht_glmm)
+
+# Plot Survival ~ log(Area) + Height
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive, col = Height)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Model Survive ~ log(Area) + Height with Indiv_ID as random effect
+sur_area_ht_glmm <- glmer(Survive ~ logArea_t0 + Height + (logArea_t0 | Indiv_ID), 
+                     data = wrangled_df, family = binomial)
+summary(sur_area_ht_glmm)
+# Height has slightly stronger relationship with survival than area
+
+# Plot Survival ~ log(Area) for different stages and sexes - juveniles given "Unknown" sex
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = Survive, col = Sex)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# Filter wrangled data frame for adults only
+wrangled_adults_df <- filter(wrangled_df, Sex == "Female" | Sex == "Male")
+
+# Plot Survival ~ log(Area) + Sex for adults
+ggplot(data = wrangled_adults_df, aes(x = logArea_t0, y = Survive, col = Sex)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# For adults, model Survival ~ log(Area) + Sex with Indiv_ID as random effect
+sur_area_sex_glmm <- glmer(Survive ~ logArea_t0 + Sex + (logArea_t0 | Indiv_ID), 
+                     data = wrangled_adults_df, family = binomial)
+summary(sur_area_sex_glmm)
+
+# For adults, model Survival ~ log(Area) * Sex with Indiv_ID as random effect
+sur_area_sex_int_glmm <- glmer(Survive ~ logArea_t0 * Sex + (logArea_t0 | Indiv_ID), 
+                           data = wrangled_adults_df, family = binomial)
+summary(sur_area_sex_int_glmm)
+
+# Plot Survival ~ Height + Sex for adults
+ggplot(data = wrangled_adults_df, aes(x = Height, y = Survive, col = Sex)) +
+  geom_point() +
+  stat_smooth(method = "glm", 
+              method.args = list(family = binomial)) +
+  theme_bw()
+
+# For adults, model Survival ~ Height + Sex with Indiv_ID as random effect
+sur_ht_sex_glmm <- glmer(Survive ~ Height + Sex + (Height | Indiv_ID), 
+                           data = wrangled_adults_df, family = binomial)
+summary(sur_ht_sex_glmm)
+
+# For adults, model Survival ~ Height * Sex with Indiv_ID as random effect
+sur_ht_sex_int_glmm <- glmer(Survive ~ Height * Sex + (Height | Indiv_ID), 
+                               data = wrangled_adults_df, family = binomial)
+summary(sur_ht_sex_int_glmm)
+
+# For adults, model Survival ~ logArea + Height + Sex with Indiv_ID as random effect
+sur_area_ht_sex_glmm <- glmer(Survive ~ logArea_t0 + Height + Sex + (logArea_t0 | Indiv_ID), 
+                             data = wrangled_adults_df, family = binomial)
+summary(sur_area_ht_sex_glmm)
+
+# For adults, model Survival ~ logArea * Sex + Height with Indiv_ID as random effect
+sur_area_ht_sex_int_glmm <- glmer(Survive ~ logArea_t0 * Sex + Height + (logArea_t0 | Indiv_ID), 
+                              data = wrangled_adults_df, family = binomial)
+summary(sur_area_ht_sex_int_glmm)
+
+# Survival depends on sex, therefore model juveniles, males and females separately
 
 ## Model growth ------------------------------------------------------------
 # Plot growth in time t1 against growth in time t0
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = logArea_t1)) +
+  geom_point() +
+  geom_abline(aes(intercept = 0, slope = 1)) +
+  lims(x = c(0, max(long_df$logArea_t0)), y = c(0, max(long_df$logArea_t1))) +
+  geom_smooth(method = "lm") +
+  theme_bw()
+
+# Plot growth in time t1 against growth in time t0 as a function of sex
 ggplot(data = wrangled_df, aes(x = logArea_t0, y = logArea_t1, col = Sex)) +
   geom_point() +
   geom_abline(aes(intercept = 0, slope = 1)) +
@@ -471,19 +581,44 @@ ggplot(data = wrangled_df, aes(x = logArea_t0, y = logArea_t1, col = Sex)) +
   theme_bw() +
   geom_vline(xintercept = min_size_rep)
 
-# Select model for growth
+# Calculate per-time-step growth rate for each individual in each time step
+wrangled_df$Growth_t0_t1 <- (wrangled_df$logArea_t1 - wrangled_df$logArea_t0)/wrangled_df$logArea_t0
+
+# Plot relative growth from t0 to t1 against growth in time t0
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = Growth_t0_t1)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw() 
+
+# Plot relative growth from t0 to t1 against growth in time t0 as a function of sex
+ggplot(data = wrangled_df, aes(x = logArea_t0, y = Growth_t0_t1, col = Sex)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  theme_bw() +
+  geom_vline(xintercept = min_size_rep)
+
+# Growth depends on sex, therefore model juveniles, males and females separately
 
 ## Model fruiting ------------------------------------------------------
+# Filter wrangled data for females only
+wrangled_fem_df <- filter(wrangled_by_yr_df, 
+                          Sex == "Female")
 
-# Select model for fruiting
-ggplot(data = adults_df, aes(x = logArea, y = Fruit)) +
+# Plot fruiting ~ logArea for females only 
+ggplot(data = wrangled_fem_df, aes(x = logArea, y = Fruit)) +
   geom_point() +
   stat_smooth(method = "glm", 
               method.args = list(family = binomial))
 
-# Initial model for 
-log_reg_fru_1 <- glm(Fruit ~ logArea, data = long_by_yr_df, family = binomial)
-summary(log_reg_fru_1)
+# Model fruiting ~ logArea with Indiv_ID as random effect
+fru_area_glmm <- glmer(Fruit ~ logArea + (logArea | Indiv_ID), data = wrangled_fem_df, family = binomial)
+summary(fru_area_glmm)
+
+# Model fruiting ~ Height with Indiv_ID as random effect
+fru_area_glmm <- glmer(Fruit ~ logArea_t0 * Sex + Height + (logArea_t0 | Indiv_ID), 
+                                  data = wrangled_adults_df, family = binomial)
+summary(sur_area_ht_sex_int_glmm)
+
 
 # Construct IPM -----------------------------------------------------------
 
