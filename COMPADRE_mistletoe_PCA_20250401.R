@@ -1,0 +1,1088 @@
+### Placing the life history strategy of mistletoe across COMPADRE species
+### Oliver G. Spacey, Owen R. Jones, Sydne Record, Arya Y. Yue, Wenyi Liu, Alice Rosen, Michael Crawley, Chris J. Thorogood, Roberto Salguero-Gómez
+### 25.03.2024
+### Adapted from Salguero-Gómez, 2024
+
+# Pre-amble -----------------------------------------------------------
+# Clear environment
+rm(list=ls())
+
+# Load necessary packages
+library(scales)
+library(mice)
+library(popdemo)   # Extract life history traits
+library(popbio)    # Extract life history traits
+library(remote)
+#remotes::install_github("jonesor/Rcompadre", build_opts = NULL)
+#remotes::install_github("jonesor/Rage", build_opts = NULL)
+library(Rcompadre) # Extract and manipulate data from COMPADRE
+library(Rage)      # Extract life history traits
+library(naniar)
+library(rotl)      # Query Open Tree of Life
+library(ape)
+library(geiger)
+library(nlme)
+library(phytools)
+library(caper)
+library(agricolae)
+library(vioplot)
+library(stringr)
+library(Ternary)
+library(plotrix)
+library(gclus)
+library(ggplot2) # Data visualisation
+library(dplyr)   # Data wrangling
+library(rworldmap)
+
+# Set working directory as required
+
+# Obtain life history traits -----------------------------------------------------
+
+# Call in COMPADRE
+compadre <- cdb_fetch("compadre")
+
+# Check dimensions of initial dataset
+dim(compadre)
+
+# Subset MPMs for unmanipulated, wild populations, dim >= 3, 
+# with survival and fecundity appropriately measured
+compadre <- subset(compadre, MatrixTreatment == "Unmanipulated" &
+                           MatrixDimension >= 3 &
+                           SurvivalIssue < 1.001 &
+                           MatrixSplit == "Divided" &
+                           MatrixFec =="Yes" &
+                           MatrixCaptivity == "W")
+
+# Check dimensions of new dataset
+dim(compadre)
+
+# Obtain unique matrix IDs
+uniqueStudiesFirstID <- compadre$MatrixID[which(duplicated(compadre$SpeciesAuthor)==F)]
+
+# Subset accordingly to remove duplicates 
+compadre <- subset(compadre, compadre$MatrixID %in% uniqueStudiesFirstID)
+# Check dimensions of new dataset
+dim(compadre)
+
+# Check how many species have more than a single study
+tableSpeciesAccepted <- table(compadre$SpeciesAccepted)
+matrixSpeciesAccepted <- as.matrix(tableSpeciesAccepted)
+speciesDuplicate <- rownames(matrixSpeciesAccepted)[which(matrixSpeciesAccepted>1)]
+speciesDuplicate
+#[1] "Actaea elata"                   
+#[2] "Alliaria petiolata"             
+#[3] "Anthyllis vulneraria"           
+#[4] "Araucaria hunsteinii"           
+#[5] "Ascophyllum nodosum"            
+#[6] "Astragalus scaphoides"          
+#[7] "Astrophytum capricorne"         
+#[8] "Astrophytum ornatum"            
+#[9] "Calochortus lyallii"            
+#[10] "Carduus nutans"                 
+#[11] "Carlina vulgaris"               
+#[12] "Chamaedorea radicalis"          
+#[13] "Cirsium perplexans"             
+#[14] "Cirsium pitcheri"               
+#[15] "Cirsium tracyi"                 
+#[16] "Cypripedium calceolus"          
+#[17] "Dactylorhiza lapponica"         
+#[18] "Digitalis purpurea"             
+#[19] "Dracocephalum austriacum"       
+#[20] "Erythronium japonicum"          
+#[21] "Euterpe precatoria"             
+#[22] "Hylocomium splendens"           
+#[23] "Lepanthes rupestris"            
+#[24] "Lomatium bradshawii"            
+#[25] "Mammillaria huitzilopochtli"    
+#[26] "Mammillaria pectinifera"        
+#[27] "Neobuxbaumia macrocephala"      
+#[28] "Neobuxbaumia mezcalaensis"      
+#[29] "Neobuxbaumia tetetzo"           
+#[30] "Panax quinquefolius"            
+#[31] "Phyllanthus emblica"            
+#[32] "Pinus lambertiana"              
+#[33] "Plantago coronopus"             
+#[34] "Primula veris"                  
+#[35] "Primula vulgaris"               
+#[36] "Pseudophoenix sargentii"        
+#[37] "Pyrrocoma radiata"              
+#[38] "Rhododendron maximum"           
+#[39] "Rhododendron ponticum"          
+#[40] "Salix arctica"                  
+#[41] "Sarracenia purpurea"            
+#[42] "Shorea leprosula"               
+#[43] "Solidago altissima"             
+#[44] "Succisa pratensis"              
+#[45] "Taraxacum campylodes"           
+#[46] "Tillandsia multicaulis"         
+#[47] "Tillandsia punctulata"          
+#[48] "Trillium grandiflorum"          
+#[49] "Trollius laxus"                 
+#[50] "Vella pseudocytisus subsp. paui"
+
+# Run through duplicated species
+for (spp in speciesDuplicate){
+  try(subset <- compadre[which(compadre$SpeciesAccepted==spp), c("MatrixID","SpeciesAuthor","SpeciesAccepted","CommonName","StudyDuration","MatrixComposite","MatrixDimension")])
+  print(subset)
+  matrixID <- compadre$MatrixID[which(compadre$SpeciesAccepted==spp)]
+  readline(prompt="Press [enter] to continue")
+  for (MPM in matrixID){
+    print(compadre$mat[[which(compadre$MatrixID == MPM)]])
+    readline(prompt="Press [enter] to continue")
+  }
+}
+
+# Delete studies that are replicated by given species, prioritising those that have longer duration, higher dimensionality, range of sizes examined, consistency in state variables, inclusion of reproduction
+delete_Actaea_elata <- c(241325) # Retain 242308 (longer duration)            
+delete_Alliaria_petiolata <- c(241453, 241454) # Retain 241455 (longer duration)          
+delete_Anthyllis_vulneraria <- c(241556) # Retain 239132 (longer duration)         
+delete_Araucaria_hunsteinii <- c(247391) # Retain 247395 (larger matrix)         
+delete_Ascophyllum_nodosum <- c(238271) # Retain 240684 (longer duration)         
+delete_Astragalus_scaphoides <- c(241822) # Retain 241833 (longer duration)        
+delete_Astrophytum_capricorne <- c(246894) # Retain 246895 (longer duration)       
+delete_Astrophytum_ornatum <- c(246904) # Retain 246901 (longer duration)         
+delete_Calochortus_lyallii <- c(242128) # Retain 242069 (larger matrix)          
+delete_Carduus_nutans <- c(242147) # Retain 242153 (longer duration)               
+delete_Carlina_vulgaris <- c(242178) # Retain 242187 (longer duration)             
+delete_Chamaedorea_radicalis <- c(246265) # Retain 246232 (longer duration)       
+delete_Cirsium_perplexans <- c(242360) # Retain 242359 (larger matrix)         
+delete_Cirsium_pitcheri <- c(242367, 242373, 242413) # Retain 242422 (longer duration)             
+delete_Cirsium_tracyi <- c(242472) # Retain 242471 (larger matrix)               
+delete_Cypripedium_calceolus <- c(242609, 242624) # Retain 242581 (longer duration)       
+delete_Dactylorhiza_lapponica <- c(242656) # Retain 242663 (longer duration)      
+delete_Digitalis_purpurea <- c(242803) # Retain 242802 (longer duration)         
+delete_Dracocephalum_austriacum <- c(238541) # Retain 242856 (longer duration)   
+delete_Erythronium_japonicum <- c(238585, 243161) # Retain 243162 (larger matrix)       
+delete_Euterpe_precatoria <- c(246326) # Retain 246328 (longer duration)          
+delete_Hylocomium_splendens <- c(241108, 241109) # Retain 238673 (longer duration and larger matrix)        
+delete_Lepanthes_rupestris <- c(244030) # Retain 244037 (longer duration)        
+delete_Lomatium_bradshawii <- c(244255) # Retain 244207 (longer duration)         
+delete_Mammillaria_huitzilopochtli <- c(247028) # Retain 247040 (larger matrix) 
+delete_Mammillaria_pectinifera <- c(247064, 247065) # Retain 247066 (longer duration and larger matrix)     
+delete_Neobuxbaumia_macrocephala <- c(247078) # Retain 247073 (same publication, equal in study duration and dimension)  
+delete_Neobuxbaumia_mezcalaensis <- c(247082) # Retain 247086 (broader range of sizes examined)    
+delete_Neobuxbaumia_tetetzo <- c(247093, 247097, 247098) # Retain 247102 (longer duration)       
+delete_Panax_quinquefolius <- c(244577, 244585) # Retain 238925 (longer durationa and larger matrix)         
+delete_Phyllanthus_emblica <- c(247740) # Retain 247692 (same publication, equal in study duration and dimension)         
+delete_Pinus_lambertiana <- c(247799) # Retain 247789 (longer duration)          
+delete_Plantago_coronopus <- c(244776) # Retain 244780 (longer duration)         
+delete_Primula_veris <- c(245010, 245105) # Retain 245031 (longer duration)               
+delete_Primula_vulgaris <- c(245197) # Retain 245132 (larger matrix)            
+delete_Pseudophoenix_sargentii <- c(246364) # Retain 246371 (longer duration)    
+delete_Pyrrocoma_radiata <- c(243393) # Retain 245290 (longer duration)          
+delete_Rhododendron_maximum <- c(246735) # Retain 246736 (size-based, more accurate to measure, equal in study duration and dimension)        
+delete_Rhododendron_ponticum <- c(247872) # Retain 247902 (larger matrix)      
+delete_Salix_arctica <- c(246787) # Retain 246785 (larger matrix)              
+delete_Sarracenia_purpurea <- c(245491) # Retain 245494 (longer duration)        
+delete_Shorea_leprosula <- c(247953) # Retain 247949 (longer duration)           
+delete_Solidago_altissima <- c(245613) # Retain 245611 (contains reproduction, equal in study duration and dimension)          
+delete_Succisa_pratensis <- c(245715, 245727) # Retain 245693 (longer duration)           
+delete_Taraxacum_campylodes <- c(245818) # Retain 245814 (larger matrix)        
+delete_Tillandsia_multicaulis <- c(241194) # Retain 241198 (consistent state variable used, equal in study duration and dimension)     
+delete_Tillandsia_punctulata <- c(241200) # Retain 241203 (consistent state variable used, equal in study duration and dimension)      
+delete_Trillium_grandiflorum <- c(240174) # Retain 245986 (larger matrix)       
+delete_Trollius_laxus <- c(246097) # Retain 246109 (longer duration)              
+delete_Vella_pseudocytisus_subsp._paui <- c(246816, 246839) # Retain 246829 (longer duration)
+
+# Delete selected duplicates
+deleteDuplicateStudies <- c(
+  delete_Actaea_elata,           
+  delete_Alliaria_petiolata,          
+  delete_Anthyllis_vulneraria,          
+  delete_Araucaria_hunsteinii,          
+  delete_Ascophyllum_nodosum,           
+  delete_Astragalus_scaphoides,         
+  delete_Astrophytum_capricorne,        
+  delete_Astrophytum_ornatum,           
+  delete_Calochortus_lyallii,           
+  delete_Carduus_nutans,                
+  delete_Carlina_vulgaris,              
+  delete_Chamaedorea_radicalis,         
+  delete_Cirsium_perplexans,            
+  delete_Cirsium_pitcheri,              
+  delete_Cirsium_tracyi,                
+  delete_Cypripedium_calceolus,         
+  delete_Dactylorhiza_lapponica,        
+  delete_Digitalis_purpurea,            
+  delete_Dracocephalum_austriacum,      
+  delete_Erythronium_japonicum,         
+  delete_Euterpe_precatoria,            
+  delete_Hylocomium_splendens,          
+  delete_Lepanthes_rupestris,           
+  delete_Lomatium_bradshawii,           
+  delete_Mammillaria_huitzilopochtli,   
+  delete_Mammillaria_pectinifera,       
+  delete_Neobuxbaumia_macrocephala,     
+  delete_Neobuxbaumia_mezcalaensis,     
+  delete_Neobuxbaumia_tetetzo,          
+  delete_Panax_quinquefolius,           
+  delete_Phyllanthus_emblica,           
+  delete_Pinus_lambertiana,             
+  delete_Plantago_coronopus,            
+  delete_Primula_veris,                 
+  delete_Primula_vulgaris,              
+  delete_Pseudophoenix_sargentii,       
+  delete_Pyrrocoma_radiata,             
+  delete_Rhododendron_maximum,          
+  delete_Rhododendron_ponticum,        
+  delete_Salix_arctica,                 
+  delete_Sarracenia_purpurea,           
+  delete_Shorea_leprosula,              
+  delete_Solidago_altissima,            
+  delete_Succisa_pratensis,             
+  delete_Taraxacum_campylodes,          
+  delete_Tillandsia_multicaulis,        
+  delete_Tillandsia_punctulata,         
+  delete_Trillium_grandiflorum,         
+  delete_Trollius_laxus,                
+  delete_Vella_pseudocytisus_subsp._paui)
+
+# Delete duplicate studies of suboptimal quality
+dim(compadre)
+compadre <- subset(compadre, !compadre$MatrixID %in% deleteDuplicateStudies)
+dim(compadre)
+
+# Make sure there are no duplicates left in the dataset
+tableSpeciesAccepted <- table(compadre$SpeciesAccepted)
+matrixSpeciesAccepted <- as.matrix(tableSpeciesAccepted)
+speciesDuplicate <- rownames(matrixSpeciesAccepted)[which(matrixSpeciesAccepted>1)]
+speciesDuplicate
+
+# Make sure all single species MPMs are sensible for this study via visual inspection
+for (i in 1:dim(compadre)[1]){
+  try(subset <- compadre[i, c("MatrixID","SpeciesAccepted","CommonName","StudyDuration","MatrixComposite","MatrixDimension")])
+  print(subset)
+  print(compadre$mat[[i]]@matrixClass)
+  print(compadre$mat[[i]]@matU)
+  print(compadre$mat[[i]]@matF)
+  print(compadre$mat[[i]]@matC)
+  readline(prompt="Press [enter] to continue")
+}
+
+# Check models have reproduction, are not two-sex models and do not have any stages which do not make sense
+# 238578 flowering individuals don't reproduce
+# 238586 no reproduction
+# 238846 flowering shoots don't reproduce
+# 238856 no reproduction
+# 240738 two-sex model
+# 240808 no reproduction
+# 240842 just seeds
+# 240904 no reproduction
+# 240956 no reproduction
+# 241606 two-sex model
+# 241949 only diagonal matrix (no movement between classes)
+# 242040 reproductive stages not actually reproductive
+# 243176 seedlings reproducing...
+# 243309 multi-sex model
+# 243357 multi-sex model
+# 244284 no reproduction
+# 245418 flowering individuals don't reproduce
+# 245646 plants measured in agglomerations, reproduction and survival equated
+# 245893 no reproduction
+# 246049 no reproduction
+# 246393 two-sex model
+# 246613 two-sex model
+# 247442 two-sex model
+# 247551 no reproduction
+
+# Remove models which do not fulfil these criteria
+
+deleteNAStudies <- c(238578, 238586, 238846, 238856, 240738,
+                     240808, 240842, 240904, 240956, 241606,
+                     241949, 242040, 243176, 243309, 243357,
+                     244284, 245418, 245646, 245893, 246049,
+                     246393, 246613, 247442, 247551)
+
+#Delete non-applicable studies
+dim(compadre)
+compadre <- subset(compadre, !compadre$MatrixID %in% deleteNAStudies)
+dim(compadre)
+
+# Distributions of matrix dimensions
+table(compadre$dim)
+
+# Search for parasitic plant families from Nickrent et al., 2020
+parasitic_fams <- c("Convolvulaceae",
+                    "Orobanchaceae",
+                    "Lennoaceae",
+                    "Mitrastemonaceae",
+                    "Cytinaceae",
+                    "Apodanthaceae",
+                    "Rafflesiaceae",
+                    "Krameriaceae",
+                    "Cynomoriaceae",
+                    "Erythropalaceae",
+                    "Strombosiaceae",
+                    "Octoknemaceae",
+                    "Coulaceae",
+                    "Ximeniaceae",
+                    "Aptandraceae",
+                    "Olacaceae",
+                    "Balanophoraceae",
+                    "Misodendraceae",
+                    "Schoepfiaceae",
+                    "Mystropetalaceae",
+                    "Loranthaceae",
+                    "Opiliaceae",
+                    "Comandraceae",
+                    "Thesiaceae",
+                    "Cervantesiaceae",
+                    "Nanodeaceae",
+                    "Santalaceae",
+                    "Amphorogynaceae",
+                    "Viscaceae",
+                    "Hydnoraceae",
+                    "Lauraceae")
+
+# Find species which are in these families
+compadre[which(compadre$Family %in% parasitic_fams)]$SpeciesAccepted
+
+# Kunkeliella subsucculenta is also a hemiparasite
+# Pedicularis furbishiae is also a hemiparasite
+# Others are non-parasitic
+
+# Number of MPMs for which to calculate life history traits
+long <- dim(compadre)[1]
+
+# Dataframe to save life history trait outputs
+output <- data.frame("unique.number"=rep(NA,long),
+                  "SpeciesAuthor"=rep(NA,long),
+                  "SpeciesAccepted"=rep(NA,long),
+                  "CommonName"=rep(NA,long),
+                  "Family"=rep(NA,long),
+                  "Class"=rep(NA,long),
+                  "Kingdom"=rep(NA,long),
+                  "Authors"=rep(NA,long),
+                  "Journal"=rep(NA,long),
+                  "SourceType"=rep(NA,long),
+                  "YearPublication"=rep(NA,long),
+                  "DOI_ISBN"=rep(NA,long),
+                  "Country"=rep(NA,long),
+                  "Continent"=rep(NA,long),
+                  "Ecoregion"=rep(NA,long),
+                  "Population"=rep(NA,long),
+                  "StartYear"=rep(NA,long),
+                  "StartMonth"=rep(NA,long),
+                  "StartSeason"=rep(NA,long),
+                  "EndYear"=rep(NA,long),
+                  "EndMonth"=rep(NA,long),
+                  "EndSeason"=rep(NA,long),
+                  "Treatment"=rep(NA,long),
+                  "MatrixComposite"=rep(NA,long),
+                  "Lat"=rep(NA,long),
+                  "Lon"=rep(NA,long),
+                  
+                  "MatrixSplit"=rep(NA,long),
+                  "MatrixFec"=rep(NA,long),
+                  "MatrixDimension"=rep(NA,long),
+                  
+                  "Ergodic"=rep(NA,long),
+                  "Irreducible"=rep(NA,long),
+                  "Primitive"=rep(NA,long),
+                  "notProp"=rep(NA,long),
+
+                  "Lambda"=rep(NA,long),
+                  "GenTfun"=rep(NA,long),
+                  "R0"=rep(NA,long),
+                  "Lmean"=rep(NA,long),
+                  "La"=rep(NA,long)
+)
+
+
+# Convert projection interval to numeric and assuming an annual basis when not stated
+compadre$ProjectionInterval <- as.numeric(compadre$ProjectionInterval)
+compadre$ProjectionInterval[which(is.na(compadre$ProjectionInterval))] <- 1
+
+# Plot the frequency of projection interval
+hist((as.numeric(compadre$ProjectionInterval)), xlab= "Projection interval (years)", col="blue", main ="", cex.lab=1.2, breaks=200, xlim=c(0,max(compadre$ProjectionInterval)), ylim=c(0,140))
+
+# Run through all models and calculate life history traits
+d <- compadre
+count <- 0
+
+for (i in 1:long){
+  count <- count + 1
+
+  # Transfer metadata over from the metadata file
+  output[count,c("MatrixID", "SpeciesAuthor","SpeciesAccepted","CommonName","Family","Class","Kingdom","Authors","Journal","SourceType","YearPublication","DOI_ISBN","Country","Continent","Ecoregion","Lat","Lon","StartYear","StartSeason","StartMonth","EndYear","EndSeason","EndMonth","Population","Treatment","MatrixComposite","MatrixSplit","MatrixFec")]=
+    d@data[i,c("MatrixID", "SpeciesAuthor","SpeciesAccepted","CommonName","Family","Class","Kingdom","Authors","Journal","SourceType","YearPublication","DOI_ISBN","Country","Continent","Ecoregion","Lat","Lon","MatrixStartYear","MatrixStartSeason","MatrixStartMonth","MatrixEndYear","MatrixEndSeason","MatrixEndMonth","MatrixPopulation","MatrixTreatment","MatrixComposite","MatrixSplit","MatrixFec")]
+  
+  # Define the beginning of life when an individual become established. Thus, we do not consider transitions from the "prop" stages
+  try(lifeStages <- d$mat[[i]]@matrixClass$MatrixClassOrganized)
+  try(prop <- (which(lifeStages == "prop")))
+  try(active <- (which(lifeStages == "active")))
+  try(dorm <- (which(lifeStages == "dorm")))
+  try(matU <- as.matrix(d$mat[[i]]@matU)^(1/d$ProjectionInterval[i]))
+  try(matU[is.na(matU)] <- 0)
+  try(matF <- as.matrix(d$mat[[i]]@matF)^(1/d$ProjectionInterval[i]))
+  try(matF[is.na(matF)] <- 0)
+  try(matC <- as.matrix(d$mat[[i]]@matC)^(1/d$ProjectionInterval[i]))
+  try(matC[is.na(matC)] <- 0)
+  try(matA <- matU + matF + matC)
+  
+  #Re-arrange stages if necessary
+  try(reArrangeVector <- c(prop, active, dorm))
+  try(matU <- as.matrix(matU[reArrangeVector, reArrangeVector]))
+  rownames(matU) <- colnames(matU)
+  try(matF <- as.matrix(matF[reArrangeVector, reArrangeVector]))
+  rownames(matF) <- colnames(matF)
+  try(matC <- as.matrix(matC[reArrangeVector, reArrangeVector]))
+  rownames(matC) <- colnames(matC)
+  try(matA <- as.matrix(matA[reArrangeVector, reArrangeVector]))
+  rownames(matA) <- colnames(matA)
+  
+  # Designate non-propagule stage
+  try(output$notProp[count] <- notProp <- min(which(lifeStages != "prop")))
+  try(if (is.infinite(notProp)) {notProp <- 1})
+  
+  #Matrix Dimension
+  try(matDim <- dim(matU)[1])
+  try(output$MatrixDimension[count] <- matDim)
+  
+  if(matDim>1){
+    
+    #Primitivity
+    try(output$Primitive[count] <- isPrimitive(matA))
+    
+    #Ergodicity
+    try(output$Ergodic[count] <- isErgodic(matA))
+    
+    #Irreducibility
+    try(output$Irreducible[count] <- isIrreducible(matA))
+    
+    #Net reproductive rate (R0; Caswell 2001, p 126)"The mean numbe of offspring by which an individual will be replaced by the end of its live.
+    try(output$R0[count] <- R0 <- net_repro_rate(matU, matF, notProp))
+    
+    #lambda
+    try(output$Lambda[count] <- Lambda <- eigen.analysis(matA)$lambda1)
+    
+    #Generation time (T; Caswell 2001, p 129)
+    try(output$GenTfun[count] <- abs(log(R0)/log(Lambda)))
+    
+    # Calculate mean life expectancy from mature distribution
+    try(mat_dist <- mature_distrib(matU, start = notProp, repro_stages = repro_stages(matF)))
+    try(output[count,"Lmean"] <- life_expect_mean(matU, mixdist = mat_dist, start = NULL))
+    
+    # Calculate mean age at maturity
+    try(output[count,"La"] <- mature_age(matU, matF, notProp))
+
+  }
+  
+  print(paste(i, "-", long, "-", d$SpeciesAuthor[i]))
+}
+
+# Estimate reproductive window from mean life expectancy and age at first reproduction
+output$Lamean <- output$Lmean - output$La
+hist(output$Lamean)
+range(output$Lamean, na.rm=T)
+
+# Outlier removal will be important
+
+# Replace all infinite and NaN values with NA
+output <- do.call(data.frame, lapply(output, function(x) {
+  replace(x, is.infinite(x) | is.nan(x), NA)
+}))
+
+# Define all LHTs and demographic properties
+allLHTs <- c("Lambda", "GenTfun", "R0", "Lmean", "La", "Lamean")
+
+# Add mistletoe life history traits
+
+# Read in mistletoe LHTs
+Mst_LHTs <- read.csv("Mst_LHTs.csv")
+
+# Add to output data frame
+output <- full_join(output, Mst_LHTs) %>%
+  select(-X)
+
+# Create function to remove outliers - use 1.5 interquartlie range as not approximated as normal
+remove_outliers <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+
+# Remove all outliers
+for (i in allLHTs){
+  output[,i] <- remove_outliers(output[,i])
+}
+
+# Run through each LHT and check for normality
+for (i in allLHTs){
+  par(mfrow=c(2,2))
+  hist(output[,i], main=i)
+  try(hist(log(output[,i]), main="log"))
+  try(hist(log(output[,i]) + 1, main="log+1"))
+  try(hist(sqrt(output[,i]), main="sqrt"))
+  readline(prompt = "Press [enter] to continue")
+}
+
+# Traits left unaltered:
+# Lambda, R0
+
+# Traits to be log-transformed:
+# GenTfun
+output$GenTfun <- log(output$GenTfun)
+hist(output$GenTfun, breaks = 10)
+
+#Lmean
+output$Lmean <- log(output$Lmean)
+
+# Remove non-positive values and -Inf as due to calculation errors
+output$Lmean <- replace(output$Lmean, is.infinite(output$Lmean), NA)
+output$Lmean <- replace(output$Lmean, output$Lmean < 0, NA)
+hist(output$Lmean, breaks = 10)
+
+# La
+output$La <- log(output$La)
+output$La <- replace(output$La, output$La < 0, NA)
+hist(output$La, breaks = 10)
+
+# To log-transform Lamean, add minimum value + 1 first
+output$Lamean <- log(output$Lamean + abs(min(output$Lamean, na.rm = TRUE)) + 1)
+hist(output$Lamean, breaks = 10)
+
+# Examine distribution of first non-propagule stages
+hist(output$notProp)
+
+# Growth form data -----------------------------------------------------------
+# Read in data to add Raunkiaer growth form
+growth_form_df <- read.csv("Raunkiaer_growth_forms.csv")
+
+# Replace "_" with " " in growth form data frame
+growth_form_df$species <- sub("_", " ", growth_form_df$species)
+
+# Calculate how many plant species present in the growth form data frame
+length(which(output$SpeciesAccepted %in% growth_form_df$species))
+# 319
+#out of
+nrow(output)
+# 499
+
+# Subset growth form data frame by those species in demographic data set
+growth_form_sp <- growth_form_df[which(growth_form_df$species %in% output$SpeciesAccepted), c("species","raunkier")]
+
+# Rename "species" column for merging
+names(growth_form_sp)[names(growth_form_sp) == "species"] <- "SpeciesAccepted"
+
+# Add growth forms onto output
+output <- merge(output, growth_form_sp, by = "SpeciesAccepted", all.x = T)
+
+# Rename "raunkier" column for merging
+names(output)[names(output) == "raunkier"] <- "Growth_form"
+
+# Find species for which growth form is missing
+growth_missing_sp <- output[which(is.na(output$Growth_form)), "SpeciesAccepted"]
+# 180 species
+
+# Viscum album is an epiphyte by the Raunkiaer classification
+output[which(output$SpeciesAccepted == "Viscum album"),]$Growth_form <- "Epiphyte"
+
+# Plot distributions of growth forms
+ggplot(data = output, aes(x = Growth_form)) +
+  geom_bar() +
+  theme_bw()
+
+
+# Designate parasitic plants
+output <- mutate(output, Parasite = case_when(SpeciesAccepted %in% c("Viscum album", 
+                                           "Kunkeliella subsucculenta", 
+                                           "Pedicularis furbishiae") ~ "Parasite", 
+                                           .default = "Free-living"))
+
+# Phylogenetic data ----------------------------------------------------------
+
+# Match names in output to Open Tree Taxonomy
+output_species_resolved <- tnrs_match_names(output$SpeciesAccepted)
+
+# Correct subsp. and var. to only species names
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Arenaria grandiflora subsp. bolosii")]        <- "Arenaria grandiflora"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Chamaecrista lineata var. keyensis")]         <- "Chamaecrista lineata"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Echinospartum ibericum subsp. algibicum")]    <- "Echinospartum ibericum"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Eriogonum longifolium var. gnaphalifolium")]  <- "Eriogonum longifolium"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Oenothera coloradensis subsp. coloradensis")] <- "Oenothera coloradensis"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Lespedeza juncea var. sericea")]              <- "Lespedeza juncea"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Petrocoptis pyrenaica subsp. pseudoviscosa")] <- "Petrocoptis pyrenaica"
+
+# Re-attempt to match names
+output_species_resolved <- tnrs_match_names(output$SpeciesAccepted)
+
+# Create tree using names from Open Tree Taxonomy
+try(tree <- tol_induced_subtree(ott_ids = output_species_resolved$ott_id))
+
+# List ott_ids not in TOL
+invalid_ott_ids <- c(16952, 3955000, 5144270, 5525303, 5738006, 807307)
+
+# Remove corresponding species from output
+invalid_sp <- subset(output_species_resolved, output_species_resolved$ott_id %in% invalid_ott_ids)$search_string %>%
+              str_to_sentence()
+output <- subset(output, !output$SpeciesAccepted %in% invalid_sp)
+
+# Remove ott_ids not in list
+output_species_resolved <- subset(output_species_resolved, !output_species_resolved$ott_id %in% invalid_ott_ids)
+
+# Rename SpeciesAccepted names to those in phylogeny
+# Capitalise search string in resolved list
+output_species_resolved$search_string <- str_to_sentence(output_species_resolved$search_string)
+
+# Rename row names to search string
+rownames(output_species_resolved) <- output_species_resolved$search_string
+
+# Rename rows to accepted names
+rownames(output) <- output$SpeciesAccepted
+
+# Select species which have update names
+mismatched_sp <- subset(output, output$SpeciesAccepted %in% output_species_resolved$unique_name == FALSE)$SpeciesAccepted
+
+# Rename to accepted names
+for(species in mismatched_sp){
+  output[species,]$SpeciesAccepted <- output_species_resolved[species, ]$unique_name
+}
+
+# Check mismatched species have been resolved
+subset(output, output$SpeciesAccepted %in% output_species_resolved$unique_name == FALSE)$SpeciesAccepted
+
+# Check for missing labels
+output[-which(output$SpeciesAccepted %in% tree$tip.label),]$SpeciesAccepted
+
+# Re-attempt to create tree using names from Open Tree Taxonomy
+tree <- tol_induced_subtree(ott_ids = output_species_resolved$ott_id)
+
+# Strip OTT IDs
+tree$tip.label <- strip_ott_ids(tree$tip.label, remove_underscores = T)
+tree$node.label <- NULL
+
+# Remove extra brackets
+tree$tip.label <- gsub(" \\(species in kingdom Archaeplastida\\)", "", tree$tip.label)
+
+# Add edge lengths
+tree <- compute.brlen(tree)
+tree$edge.length
+
+# Check if tree is ultrametric
+is.ultrametric(tree)
+
+# Plot tree
+par(mfrow = c(1, 1))
+plot(tree, type = 'radial', cex = 0.4)
+plot(tree, cex = 0.4)
+
+# Form phylogenetic object
+row.names(output) <- output$SpeciesAccepted
+obj <- name.check(tree, output)
+obj
+
+tree2 <- tree
+tree2$tip.label <- paste("    ", tree2$tip.label, "    ")
+
+# Create .pdf of tree
+pdf("Tree.pdf", h = 8, w = 15)
+  plotTree(ladderize(tree2),type="arc",fsize=.7, depth=2,
+           lwd=1,ftype="i",arc_height=.2)
+dev.off()
+
+# Create .pdf of world map
+# worldmap <- getMap(resolution = "coarse")
+# pdf("Worldmap.pdf", h = 8, w = 15)
+#   plot(worldmap, col = "grey20", 
+#   fill = T, border = "grey40",
+#   xlim = c(-180, 180), ylim = c(-90, 90),
+#   bg = "white",
+#   asp = 1, wrap=c(-180,180))
+#   points(output$Lon,output$Lat,pch=21,col='black',cex=1.7)
+# dev.off()
+
+# Create .pdf of world map with species names
+# pdf("Worldmap species names.pdf", h = 8, w = 15)
+#   plot(worldmap, col = "white", 
+#   fill = T, border = "grey40",
+#   xlim = c(-180, 180), ylim = c(-90, 90),
+#   bg = "white",
+#   asp = 1, wrap=c(-180,180))
+#   text(output$Lon, output$Lat, output$SpeciesAccepted, cex=.7)
+# dev.off()
+
+# Create list of papers used in this study
+# ListPapers <- outputComplete[,c("SpeciesAccepted", "CommonName", "Class", "Family", "Authors", "Journal", "SourceType", "YearPublication", "DOI_ISBN","Sociality","Bodymass")]
+# ListPapers <- as.data.frame(ListPapers)
+# ListPapers$Journal[which(is.na(ListPapers$Journal))] <- ListPapers$Source[which(is.na(ListPapers$Journal))]
+# ListPapers <- ListPapers[,-which(names(ListPapers)=="SourceType")]
+
+# Assessing "missingness" of data -------------------------------------------
+
+# Perform pair-wise correlations of LHTs to evaluate co-linearities
+
+# Define LHTs to test correlations between
+LHTs <- c("GenTfun","Lmean","La","Lamean")
+
+LHTSymbols <-c(expression("T"["fun"]),
+               expression(nu["e"]),
+               expression("L"[alpha]),
+               expression(paste("L"[paste(alpha,"-",omega)])))
+
+
+# Function to add correlation coefficients
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  Cor <- abs(cor(x, y, use = "complete.obs")) # Remove abs function if desired
+  txt <- paste0(prefix, format(c(Cor, 0.123456789), digits = digits)[1])
+  if(missing(cex.cor)) {
+    cex.cor <- 0.4 / strwidth(txt)
+  }
+  text(0.5, 0.5, txt,
+       cex = 1 + cex.cor * Cor) # Resize the text by level of correlation
+}
+
+# Plotting the correlation matrix
+pairs(output[, LHTs],
+      upper.panel = panel.cor,    # Correlation panel
+      lower.panel = panel.smooth) # Smoothed regression lines
+
+# Correlation in absolute terms
+corr <- abs(cor(output[, LHTs], use = "complete.obs"))
+
+colors <- dmat.color(corr)
+#order <- order.single(corr)
+
+cpairs(output[, LHTs],                    # Data frame of variables
+       #       order,                   # Order of the variables
+       panel.colors = colors,   # Matrix of panel colors
+       border.color = alpha("grey70",.2), # Borders color
+       gap = 0.45,              # Distance between subplots
+       main = "Ordered variables colored by correlation", # Main title
+       show.points = TRUE,      # If FALSE, removes all the points
+       pch = 21,                # pch symbol
+       bg = alpha('blue',.2)) # Colors by group
+
+# Plotting the correlation matrix without imputations
+pdf("Pair-wise LHT correlations no imputations.pdf")
+pairs(output[, LHTs],
+      labels = LHTSymbols,
+      upper.panel = panel.cor,    # Correlation panel
+      lower.panel = panel.smooth) # Smoothed regression lines
+dev.off()
+
+# Calculate percentage of missing data
+pct_miss(output[, LHTs])
+
+pdf("Missing LHTs.pdf")
+  gg_miss_var(output[, LHTs], show_pct = TRUE)
+dev.off()
+
+pdf("Missing LHTs visualised.pdf")
+  vis_miss(output[, LHTs])
+dev.off()
+
+
+# Impute missing data -----------------------------------------------------
+
+unimputedOutput <- output
+
+# Imputing missing data
+imputedOutput <- imputedOutput1 <- imputedOutput2 <- imputedOutput3 <- imputedOutput4 <- imputedOutput5 <- 
+  imputedOutput6 <- imputedOutput7 <- imputedOutput8 <- imputedOutput9 <- imputedOutput10 <- output
+
+  set.seed(120)
+imputedLHTs1 <- mice(output[,LHTs], m=1)
+  set.seed(121)
+imputedLHTs2 <- mice(output[,LHTs], m=1)
+  set.seed(122)
+imputedLHTs3 <- mice(output[,LHTs], m=1)
+  set.seed(123)
+imputedLHTs4 <- mice(output[,LHTs], m=1)
+  set.seed(124)
+imputedLHTs5 <- mice(output[,LHTs], m=1)
+  set.seed(125)
+imputedLHTs6 <- mice(output[,LHTs], m=1)
+  set.seed(126)
+imputedLHTs7 <- mice(output[,LHTs], m=1)
+  set.seed(127)
+imputedLHTs8 <- mice(output[,LHTs], m=1)
+  set.seed(128)
+imputedLHTs9 <- mice(output[,LHTs], m=1)
+  set.seed(129)
+imputedLHTs10 <- mice(output[,LHTs], m=1)
+
+#imputedLHTs <- mice(output[,LHTs], m=1)
+imputedOutput1[,LHTs] <- complete(imputedLHTs1, 1)
+imputedOutput2[,LHTs] <- complete(imputedLHTs2, 1)
+imputedOutput3[,LHTs] <- complete(imputedLHTs3, 1)
+imputedOutput4[,LHTs] <- complete(imputedLHTs4, 1)
+imputedOutput5[,LHTs] <- complete(imputedLHTs5, 1)
+imputedOutput6[,LHTs] <- complete(imputedLHTs6, 1)
+imputedOutput7[,LHTs] <- complete(imputedLHTs7, 1)
+imputedOutput8[,LHTs] <- complete(imputedLHTs8, 1)
+imputedOutput9[,LHTs] <- complete(imputedLHTs9, 1)
+imputedOutput10[,LHTs] <- complete(imputedLHTs10, 1)
+
+for (i in LHTs){
+  for (j in 1:dim(imputedOutput)[1]){
+  imputedOutput[j,i] <- mean(imputedOutput1[j,i],
+                             imputedOutput2[j,i],
+                             imputedOutput3[j,i],
+                             imputedOutput4[j,i],
+                             imputedOutput5[j,i],
+                             imputedOutput6[j,i],
+                             imputedOutput7[j,i],
+                             imputedOutput8[j,i],
+                             imputedOutput9[j,i],
+                             imputedOutput10[j,i],
+                             na.rm=T)
+  }
+}
+
+#imputedOutput[,LHTs] <- complete(imputedLHTs, 1)
+
+# Check whether NAs returned
+imputedOutput[,LHTs] %>% 
+  dplyr::summarise(across(everything(), ~ sum(is.na(.x))))
+
+# No NAs returned
+
+# Plotting the correlation matrix with imputations
+pdf("Pair-wise LHT correlations with imputations.pdf")
+pairs(imputedOutput[, LHTs],
+      labels = LHTSymbols,
+      upper.panel = panel.cor,    # Correlation panel
+      lower.panel = panel.smooth) # Smoothed regression lines
+dev.off()
+
+  
+# PCA --------------------------------------------------------
+
+#Traits used
+LHTs <- c("GenTfun", "Lmean", "La", "Lamean")
+LHTSymbols <- c("T",
+                expression(eta["e"]),
+                expression("L"[alpha]),
+                expression(paste("L"[paste(alpha,"-",omega)])))
+LHTcols <- c("black", "darkgreen", "blue", "purple")
+
+
+#PCA without phylogeny
+pca <- prcomp(imputedOutput[, LHTs], center = T, scale. = T)
+row.names(pca$x) <- imputedOutput$SpeciesAccepted
+variancePCA <- summary(pca)$importance[2,]
+variancePCA
+
+#Invert order on PC1 for interpretability
+pca$x[,"PC1"] <- - pca$x[,"PC1"]
+pca$rotation[,"PC1"] <- - pca$rotation[,"PC1"]
+
+# Plot PCA
+pdf("PCA.pdf")
+  plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+       col=alpha("black",0.5), pch=21, ylim=c(-4, 5), xlim=c(-4, 4),
+       xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+  arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+  arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+  points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16)
+  points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
+  points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
+  text(pca$rotation[,"PC1"]*6, pca$rotation[,"PC2"]*6, LHTSymbols, col=LHTcols,cex=1.2)
+dev.off()
+
+# Plot PCA with species names
+pdf("PCA species names.pdf")
+  plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+       col=alpha("black",0.3), pch=21, ylim=c(-4, 5), xlim=c(-4, 4),
+       xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+  arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+  arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+  points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16)
+  text(pca$x["Viscum album","PC1"]*1.4, pca$x["Viscum album","PC2"]*1.4, labels = "V. album", cex = 0.8, col = "red")
+  points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
+  text(pca$x["Thesium subsucculentum","PC1"]*3, pca$x["Thesium subsucculentum","PC2"]*(-0.5), labels = "T. subsucculentum", cex = 0.8, col = "darkorange")
+  points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
+  text(pca$x["Pedicularis furbishiae","PC1"]*1.4, pca$x["Pedicularis furbishiae","PC2"]*1.7, labels = "P. furbishiae", cex = 0.8, col = "brown")
+  text(pca$rotation[,"PC1"]*5.5, pca$rotation[,"PC2"]*5.5, LHTSymbols, col=LHTcols,cex=1.2)
+dev.off()
+
+imputedOutput$PC1 <- pca$x[,"PC1"]
+imputedOutput$PC2 <- pca$x[,"PC2"]
+
+
+# Colour points by growth form
+gf_cols <- as.factor(unique(imputedOutputRes$Growth_form))
+col_palette <- c("lightgreen", "green", "darkgreen", "turquoise", "lightblue", "blue", "darkblue", "violet", "purple")  # Adjust colors to match level
+col_vector <- col_palette[as.numeric(gf_cols)]
+col_vector[is.na(gf_cols)] <- "gray"  # Color for NAs
+
+# Plot PCA
+plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+     col=alpha(col_vector, 0.5), pch=16, ylim=c(-4, 5), xlim=c(-4, 4),
+     xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16, cex = 1.5)
+text(pca$x["Viscum album","PC1"]*1.4, pca$x["Viscum album","PC2"]*1.4, labels = "V. album", cex = 1.2, col = "red")
+points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16, cex = 1.5)
+text(pca$x["Thesium subsucculentum","PC1"]*3, pca$x["Thesium subsucculentum","PC2"]*(-0.5), labels = "T. subsucculentum", cex = 1.2, col = "darkorange")
+points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16, cex = 1.5)
+text(pca$x["Pedicularis furbishiae","PC1"]*1.4, pca$x["Pedicularis furbishiae","PC2"]*1.7, labels = "P. furbishiae", cex = 1.2, col = "brown")
+text(pca$rotation[,"PC1"]*5.5, pca$rotation[,"PC2"]*5.5, LHTSymbols, col=LHTcols,cex=1.2)
+legend("topright", legend=c(levels(gf_cols), "NA"), col=c(col_palette, "gray"), pch=19)
+
+# PCA with phylogeny
+# Scale values because phyl.pca does not do it, and otherwise PCA is very stretched out on PC1
+outputPhyl <- imputedOutput
+for (i in LHTs){
+  outputPhyl[,i]  <- scale(outputPhyl[,i], center= T, scale = T)
+}
+
+rownames(outputPhyl) <- outputPhyl$SpeciesAccepted
+
+# Remove rows not in tree
+outputPhyl <- subset(outputPhyl, SpeciesAccepted %in% tree$tip.label)
+
+# Perform pPCA
+phyloPCA <- phyl.pca(tree, outputPhyl[, LHTs], method = "lambda")
+phyloPCA$lambda
+
+# Percentage variance explained
+variancePhyloPCA <- diag(phyloPCA$Eval)/sum(phyloPCA$Eval)
+variancePhyloPCA
+
+# Plot pPCA
+plot(phyloPCA)
+
+#Invert order on PC1 for interpretability
+phyloPCA$S[,"PC1"] <- -phyloPCA$S[,"PC1"]
+phyloPCA$L[,"PC1"] <- -phyloPCA$L[,"PC1"]
+
+pdf("Phylo PCA.pdf")
+  plot(phyloPCA$S[,"PC1"], phyloPCA$S[,"PC2"], 
+       col=alpha("black",0.5), pch=21,
+       xlab=paste0("PC1 (",round(variancePhyloPCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePhyloPCA[2]*100,2),"%)"))
+  arrows(0,0, phyloPCA$L[,"PC1"]*2, phyloPCA$L[,"PC2"]*2, lwd=6, col=LHTcols)
+  arrows(0,0, phyloPCA$L[,"PC1"]*2, phyloPCA$L[,"PC2"]*2, lwd=3, col="white")
+  points(phyloPCA$S["Viscum album","PC1"], phyloPCA$S["Viscum album","PC2"], col = "red", pch = 16)
+  points(phyloPCA$S["Thesium subsucculentum","PC1"], phyloPCA$S["Thesium subsucculentum","PC2"], col = "blue", pch = 16)
+  points(phyloPCA$S["Pedicularis furbishiae","PC1"], phyloPCA$S["Pedicularis furbishiae","PC2"], col = "orange", pch = 16)
+  text(phyloPCA$L[,"PC1"]*2.7, phyloPCA$L[,"PC2"]*2.7, LHTSymbols,col=LHTcols,cex=1.2)
+dev.off()
+
+pdf("Phylo PCA species names.pdf")
+plot(phyloPCA$S[,"PC1"], phyloPCA$S[,"PC2"], 
+     col=alpha("black",0.5), pch=21,
+     xlab=paste0("PC1 (",round(variancePhyloPCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePhyloPCA[2]*100,2),"%)"))
+  arrows(0,0, phyloPCA$L[,"PC1"]*2, phyloPCA$L[,"PC2"]*2, lwd=6, col=LHTcols)
+  arrows(0,0, phyloPCA$L[,"PC1"]*2, phyloPCA$L[,"PC2"]*2, lwd=3, col="white")
+  points(phyloPCA$S["Viscum album","PC1"], phyloPCA$S["Viscum album","PC2"], col = "red", pch = 16)
+  text(phyloPCA$S["Viscum album","PC1"]*1.4, phyloPCA$S["Viscum album","PC2"]*1.4, labels = "V. album", cex = 0.8, col = "red")
+  points(phyloPCA$S["Thesium subsucculentum","PC1"], phyloPCA$S["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
+  text(phyloPCA$S["Thesium subsucculentum","PC1"]*3, phyloPCA$S["Thesium subsucculentum","PC2"]*(-0.5), labels = "T. subsucculentum", cex = 0.8, col = "darkorange")
+  points(phyloPCA$S["Pedicularis furbishiae","PC1"], phyloPCA$S["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
+  text(phyloPCA$S["Pedicularis furbishiae","PC1"]*1.4, phyloPCA$S["Pedicularis furbishiae","PC2"]*1.7, labels = "P. furbishiae", cex = 0.8, col = "brown")
+  text(phyloPCA$L[,"PC1"]*2.7, phyloPCA$L[,"PC2"]*2.7, LHTSymbols,col=LHTcols,cex=1.2)
+dev.off()
+
+outputResPhyl$phyloPC1 <- phyloPCA$S[,"PC1"]
+outputResPhyl$phyloPC2 <- phyloPCA$S[,"PC2"]
+
+
+
+# par(mfrow = c(1,1))
+# plot(phyloPCA$S[,"PC1"], phyloPCA$S[,"PC2"],
+#      col=alpha("black",0.8), pch=21,
+#      xlab=paste0("Fast-slow continuum - PC1 (",round(variancePhyloPCA[1]*100,2),"%)"),ylab=paste0("Reproductive strategies - PC2 (",round(variancePhyloPCA[2]*100,2),"%)"),cex.lab=1.5)
+# arrows(0,0, phyloPCA$L[,"PC1"]*1.8, phyloPCA$L[,"PC2"]*1.8, lwd=6, col=LHTcols)
+# arrows(0,0, phyloPCA$L[,"PC1"]*1.8, phyloPCA$L[,"PC2"]*1.8, lwd=3, col="white")
+# text(phyloPCA$L[1,"PC1"]*2.2-0.1, phyloPCA$L[1,"PC2"]*2.2-0.1, LHTSymbols[1],col=LHTcols[1],cex=1.2)
+# text(phyloPCA$L[2,"PC1"]*2.2, phyloPCA$L[2,"PC2"]*2.2, LHTSymbols[2],col=LHTcols[2],cex=1.2)
+# text(phyloPCA$L[3,"PC1"]*2.2, phyloPCA$L[3,"PC2"]*2.2-0.15, LHTSymbols[3],col=LHTcols[3],cex=1.2)
+# text(phyloPCA$L[4,"PC1"]*2.2, phyloPCA$L[4,"PC2"]*2.2, LHTSymbols[4],col=LHTcols[4],cex=1.2)
+# text(phyloPCA$L[5,"PC1"]*2.2, phyloPCA$L[5,"PC2"]*2.2, LHTSymbols[5],col=LHTcols[5],cex=1.2)
+# text(phyloPCA$L[6,"PC1"]*2.2, phyloPCA$L[6,"PC2"]*2.2, LHTSymbols[6],col=LHTcols[6],cex=1.2)
+# text(phyloPCA$L[7,"PC1"]*2.2, phyloPCA$L[7,"PC2"]*2.2, LHTSymbols[7],col=LHTcols[7],cex=1.2)
+# text(phyloPCA$L[8,"PC1"]*2.2, phyloPCA$L[8,"PC2"]*2.2, LHTSymbols[8],col=LHTcols[8],cex=1.2)
+# text(phyloPCA$L[9,"PC1"]*2.2, phyloPCA$L[9,"PC2"]*2.2, LHTSymbols[9],col=LHTcols[9],cex=1.2)
+
+# Export pPCA summary
+write.csv(round(phyloPCA$S,3),"pPCA - scores.csv")
+write.csv(round(phyloPCA$L,3),"pPCA - loadings.csv")
+write.csv(diag(round(phyloPCA$Eval,3)),"pPCA - eigenvalues.csv")
+write.csv(round(variancePhyloPCA,3),"pPCA - percentage variance.csv")
+
+
+# Residuals of LHTs controlling for growth form - leave for now ----------------------------
+
+# Subset to species with growth form
+imputedOutputRes <- subset(imputedOutput, !is.na(output$Growth_form) == TRUE)
+
+# Calculate residuals of LHTs with respect to raunkiaer growth form
+
+for (i in LHTs){
+  res <- resid(lm(imputedOutput[,i] ~ Growth_form, data = imputedOutput))
+  imputedOutputRes[,i] <- res
+  print(i)
+}
+
+#PCA without phylogeny
+pca <- prcomp(imputedOutputRes[, LHTs], center = T, scale. = T)
+row.names(pca$x) <- imputedOutputRes$SpeciesAccepted
+variancePCA <- summary(pca)$importance[2,]
+variancePCA
+
+#Invert order on PC1 for interpretability
+pca$x[,"PC1"] <- - pca$x[,"PC1"]
+pca$rotation[,"PC1"] <- - pca$rotation[,"PC1"]
+
+# Plot PCA
+pdf("PCA.pdf")
+plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+     col=alpha("black",0.5), pch=21, ylim=c(-4, 5), xlim=c(-4, 4),
+     xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16)
+points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
+points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
+text(pca$rotation[,"PC1"]*6, pca$rotation[,"PC2"]*6, LHTSymbols, col=LHTcols,cex=1.2)
+dev.off()
+
+# Plot PCA with species names
+pdf("PCA species names.pdf")
+plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+     col=alpha("black",0.3), pch=21, ylim=c(-4, 5), xlim=c(-4, 4),
+     xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16)
+text(pca$x["Viscum album","PC1"]*1.4, pca$x["Viscum album","PC2"]*1.4, labels = "V. album", cex = 0.8, col = "red")
+points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
+text(pca$x["Thesium subsucculentum","PC1"]*3, pca$x["Thesium subsucculentum","PC2"]*(-0.5), labels = "T. subsucculentum", cex = 0.8, col = "darkorange")
+points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
+text(pca$x["Pedicularis furbishiae","PC1"]*1.4, pca$x["Pedicularis furbishiae","PC2"]*1.7, labels = "P. furbishiae", cex = 0.8, col = "brown")
+text(pca$rotation[,"PC1"]*5.5, pca$rotation[,"PC2"]*5.5, LHTSymbols, col=LHTcols,cex=1.2)
+dev.off()
+
+imputedOutputRes$PC1 <- pca$x[,"PC1"]
+imputedOutputRes$PC2 <- pca$x[,"PC2"]
+
+
+# Colour points by growth form
+gf_cols <- as.factor(unique(imputedOutputRes$Growth_form))
+col_palette <- c("lightgreen", "green", "darkgreen", "turquoise", "lightblue", "blue", "darkblue", "violet", "purple")  # Adjust colors to match level
+col_vector <- col_palette[as.numeric(gf_cols)]
+col_vector[is.na(gf_cols)] <- "gray"  # Color for NAs
+
+# Plot PCA
+plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+     col=alpha(col_vector, 0.5), pch=16, ylim=c(-4, 5), xlim=c(-4, 4),
+     xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16, cex = 1.5)
+text(pca$x["Viscum album","PC1"]*1.4, pca$x["Viscum album","PC2"]*1.6, labels = "V. album", cex = 1.2, col = "red")
+points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16, cex = 1.5)
+text(pca$x["Thesium subsucculentum","PC1"]*6, pca$x["Thesium subsucculentum","PC2"], labels = "T. subsucculentum", cex = 1.2, col = "darkorange")
+points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16, cex = 1.5)
+text(pca$x["Pedicularis furbishiae","PC1"]*1.4, pca$x["Pedicularis furbishiae","PC2"]*2.5, labels = "P. furbishiae", cex = 1.2, col = "brown")
+legend("topright", legend=c(levels(gf_cols), "NA"), col=c(col_palette, "gray"), pch=19)
+text(pca$rotation[,"PC1"]*5.5, pca$rotation[,"PC2"]*5.5, LHTSymbols, col=LHTcols,cex=1.2)
