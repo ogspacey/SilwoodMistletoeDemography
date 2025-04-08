@@ -36,6 +36,7 @@ library(rworldmap)
 library(scales) # Data visualisation
 library(RColorBrewer) # Data visualisation
 library(khroma)
+library(rphylopic)
 
 # Set working directory as required
 
@@ -739,7 +740,7 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
   usr <- par("usr")
   on.exit(par(usr))
   par(usr = c(0, 1, 0, 1))
-  Cor <- abs(cor(x, y, use = "complete.obs")) # Remove abs function if desired
+  Cor <- abs(cor(x, y, use = "complete.obs", method = "spearman")) # Remove abs function if desired
   txt <- paste0(prefix, format(c(Cor, 0.123456789), digits = digits)[1])
   if(missing(cex.cor)) {
     cex.cor <- 0.4 / strwidth(txt)
@@ -748,13 +749,29 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
        cex = 1 + cex.cor * Cor) # Resize the text by level of correlation
 }
 
+# Define diagonal panel of plot
+diag.panel <- function(x, ...) {
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  
+  i <- which(sapply(output[, LHTs], identical, x))
+  expr <- LHTSymbols[i]
+  
+  # Draw only the expression
+  text(0.5, 0.5, labels = expr, cex = 6, font = 1)
+}
+
+
 # Plotting the correlation matrix
-pairs(output[, LHTs],
-      upper.panel = panel.cor,    # Correlation panel
-      lower.panel = panel.smooth) # Smoothed regression lines
+Fig_S14 <- pairs(output[, LHTs],
+      labels = rep("", length(LHTs)),
+      upper.panel = panel.cor,
+      lower.panel = panel.smooth,
+      diag.panel = diag.panel)
+Fig_S14
 
 # Correlation in absolute terms
-corr <- abs(cor(output[, LHTs], use = "complete.obs", method = "spearman"))
+corr <- abs(cor(output[, LHTs], use = "complete.obs"))
 
 colors <- dmat.color(corr)
 #order <- order.single(corr)
@@ -772,9 +789,10 @@ cpairs(output[, LHTs],                    # Data frame of variables
 # Plotting the correlation matrix without imputations
 pdf("Pair-wise LHT correlations no imputations.pdf")
 pairs(output[, LHTs],
-      labels = LHTSymbols,
-      upper.panel = panel.cor,    # Correlation panel
-      lower.panel = panel.smooth) # Smoothed regression lines
+      labels = rep("", length(LHTs)),
+      upper.panel = panel.cor,
+      lower.panel = panel.smooth,
+      diag.panel = diag.panel)
 dev.off()
 
 # Calculate percentage of missing data
@@ -906,7 +924,53 @@ pca$rotation[,"PC1"] <- - pca$rotation[,"PC1"]
   # Assuming pca is the result of `prcomp()`
   # Create a data frame for the PCA results (with x and rotation components)
   pca_data <- as.data.frame(pca$x)
+  pca_data$Species <- row.names(pca_data)
   pca_rotations <- as.data.frame(pca$rotation)
+  
+  # Get UUIDs from scientific names for particular species
+  viscum_uuid <- "e354b2f8-cda4-4fdb-9040-4b01cdb9eaeb"
+  pedicularis_uuid <- get_uuid("Pedicularis")
+  helianthus_uuid <- get_uuid("Helianthus")
+  brassica_uuid <- get_uuid("Brassica rapa")
+  abies_uuid <- get_uuid("Abies magnifica")
+  dicymbe_uuid <- get_uuid("Leguminosae")
+  sequoia_uuid <- get_uuid("Sequoia sempervirens")
+  escontria_uuid <- "b95ba2c8-8b80-4346-acd9-b27ea03622f9"
+  
+  # Create silhouette data frame
+  sil_df <- data.frame(
+    PC1 = c(subset(pca_data, rownames(pca_data) == "Viscum album")$PC1,
+            subset(pca_data, rownames(pca_data) == "Pedicularis furbishiae")$PC1,
+            subset(pca_data, rownames(pca_data) == "Helianthus divaricatus")$PC1,
+            subset(pca_data, rownames(pca_data) == "Brassica napus")$PC1,
+            subset(pca_data, rownames(pca_data) == "Abies magnifica")$PC1,
+            subset(pca_data, rownames(pca_data) == "Dicymbe altsonii")$PC1,
+            subset(pca_data, rownames(pca_data) == "Sequoia sempervirens")$PC1,
+            subset(pca_data, rownames(pca_data) == "Escontria chiotilla")$PC1*1.2),
+    PC2 = c(subset(pca_data, rownames(pca_data) == "Viscum album")$PC2*5,
+            subset(pca_data, rownames(pca_data) == "Pedicularis furbishiae")$PC2*6,
+            subset(pca_data, rownames(pca_data) == "Helianthus divaricatus")$PC2*3.9,
+            subset(pca_data, rownames(pca_data) == "Brassica napus")$PC2,
+            subset(pca_data, rownames(pca_data) == "Abies magnifica")$PC2,
+            subset(pca_data, rownames(pca_data) == "Dicymbe altsonii")$PC2,
+            subset(pca_data, rownames(pca_data) == "Sequoia sempervirens")$PC2*1.2,
+            subset(pca_data, rownames(pca_data) == "Escontria chiotilla")$PC2*0.8),
+    uuid = c(viscum_uuid,
+             pedicularis_uuid,
+             helianthus_uuid,
+             brassica_uuid,
+             abies_uuid,
+             dicymbe_uuid,
+             sequoia_uuid,
+             escontria_uuid),
+    col = c(colours(6)[5],
+            colours(6)[5],
+            "lightgrey",
+            "lightgrey",
+            "lightgrey",
+            "lightgrey",
+            "lightgrey",
+            "lightgrey"))
   
   # Create an expression vector
   LHTSymbols <- list(
@@ -925,7 +989,15 @@ pca$rotation[,"PC1"] <- - pca$rotation[,"PC1"]
   # Plot PCA
 Fig_4 <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
     # Points for the PCA plot
-    geom_point(color = alpha("black", 0.3), shape = 21) +
+    geom_point(color = alpha("black", 0.3), shape = 21, size = 2.3) +
+  
+    # Overlay images
+    add_phylopic(uuid = sil_df$uuid,
+                 x = sil_df$PC1*1.2, 
+                 y = sil_df$PC2*1.2,
+                 alpha = 0.8, 
+                 height = 1.5,
+                 fill = sil_df$col) +
     
     # Arrows for PCA loadings (rotation)
     geom_segment(data = pca_rotations, 
@@ -944,19 +1016,19 @@ Fig_4 <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
                aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
     geom_text(data = subset(pca_data, rownames(pca_data) == "Viscum album"), 
               aes(x = PC1 * 1.4, y = PC2 * 1.4, label = "V. album"), 
-              color = colours(6)[5], size = 4) +
+              color = colours(6)[5], size = 5) +
     
     geom_point(data = subset(pca_data, rownames(pca_data) == "Thesium subsucculentum"), 
                aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
     geom_text(data = subset(pca_data, rownames(pca_data) == "Thesium subsucculentum"), 
-              aes(x = PC1 * 3, y = PC2 * -0.5, label = "T. subsucculentum"), 
-              color = colours(6)[5], size = 4) +
+              aes(x = PC1 * 2.5, y = PC2 * -1.5, label = "T. subsucculentum"), 
+              color = colours(6)[5], size = 5) +
     
     geom_point(data = subset(pca_data, rownames(pca_data) == "Pedicularis furbishiae"), 
                aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
     geom_text(data = subset(pca_data, rownames(pca_data) == "Pedicularis furbishiae"), 
-              aes(x = PC1 * 1.4, y = PC2 * 1.7, label = "P. furbishiae"), 
-              color = colours(6)[5], size = 4) +
+              aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
+              color = colours(6)[5], size = 5) +
 
     
     # Axis labels and plot title with variance explained
@@ -1012,32 +1084,118 @@ Fig_4
 # text(pca$rotation[,"PC1"]*5.5, pca$rotation[,"PC2"]*5.5, LHTSymbols, col=LHTcols,cex=1.2)
 # legend("topright", legend=c(levels(gf_cols), "NA"), col=c(col_palette, "gray"), pch=19)
 # 
-# # PCA with phylogeny
-# # Scale values because phyl.pca does not do it, and otherwise PCA is very stretched out on PC1
-# outputPhyl <- imputedOutput
-# for (i in LHTs){
-#   outputPhyl[,i]  <- scale(outputPhyl[,i], center= T, scale = T)
-# }
-# 
-# rownames(outputPhyl) <- outputPhyl$SpeciesAccepted
-# 
-# # Remove rows not in tree
-# outputPhyl <- subset(outputPhyl, SpeciesAccepted %in% tree$tip.label)
-# 
-# # Perform pPCA
-# phyloPCA <- phyl.pca(tree, outputPhyl[, LHTs], method = "lambda")
-# phyloPCA$lambda
-# 
-# # Percentage variance explained
-# variancePhyloPCA <- diag(phyloPCA$Eval)/sum(phyloPCA$Eval)
-# variancePhyloPCA
-# 
+# PCA with phylogeny
+# Scale values because phyl.pca does not do it, and otherwise PCA is very stretched out on PC1
+outputPhyl <- imputedOutput
+for (i in LHTs){
+  outputPhyl[,i]  <- scale(outputPhyl[,i], center= T, scale = T)
+}
+
+rownames(outputPhyl) <- outputPhyl$SpeciesAccepted
+
+# Remove rows not in tree
+outputPhyl <- subset(outputPhyl, SpeciesAccepted %in% tree$tip.label)
+
+# Perform pPCA
+phyloPCA <- phyl.pca(tree, outputPhyl[, LHTs], method = "lambda")
+phyloPCA$lambda
+# Pagel's λ = 0.101
+
+# Percentage variance explained
+variancePhyloPCA <- diag(phyloPCA$Eval)/sum(phyloPCA$Eval)
+variancePhyloPCA
+
+#Invert order on PC1 for interpretability
+phyloPCA$S[,"PC1"] <- -phyloPCA$S[,"PC1"]
+phyloPCA$L[,"PC1"] <- -phyloPCA$L[,"PC1"]
+
+phylo_pca_data <- data.frame(PC1 = phyloPCA$S[,"PC1"], 
+                             PC2 = phyloPCA$S[,"PC2"])
+phylo_pca_data$Species <- row.names(phylo_pca_data)
+                            
+
+# Create rotations data frame
+phylo_pca_rotations <- data.frame(PC1 = phyloPCA$L[,"PC1"],
+                                  PC2 = phyloPCA$L[,"PC2"])
+
+# Plot pPCA
+Fig_S15 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
+  # Points for the PCA plot
+  geom_point(color = alpha("black", 0.3), shape = 21, size = 2.3) +
+  
+  # # Overlay images
+  # add_phylopic(uuid = sil_df$uuid,
+  #              x = sil_df$PC1*1.2, 
+  #              y = sil_df$PC2*1.2,
+  #              alpha = 0.8, 
+  #              height = 1.5,
+  #              fill = sil_df$col) +
+  
+  # Arrows for PCA loadings (rotation)
+  geom_segment(data = phylo_pca_rotations, 
+               aes(x = 0, y = 0, xend = PC1 * 5, yend = PC2 * 5), 
+               arrow = arrow(type = "closed", length = unit(0.2, "inches")), 
+               size = 1.5, color = "black") +
+  
+  # Arrows for PCA loadings (white outline)
+  geom_segment(data = phylo_pca_rotations, 
+               aes(x = 0, y = 0, xend = PC1 * 5, yend = PC2 * 5), 
+               arrow = arrow(type = "closed", length = unit(0.2, "inches")), 
+               size = 0.8, color = "white") +
+  
+  # Points for specific species and their labels
+  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
+             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
+  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
+            aes(x = PC1 * 1.4, y = PC2 * 1.4, label = "V. album"), 
+            color = colours(6)[5], size = 5) +
+  
+  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
+             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
+  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
+            aes(x = PC1 * 2.5, y = PC2 * -1.5, label = "T. subsucculentum"), 
+            color = colours(6)[5], size = 5) +
+  
+  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
+             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
+  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
+            aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
+            color = colours(6)[5], size = 5) +
+  
+  
+  # Axis labels and plot title with variance explained
+  labs(x = paste0("PC1 - Fast-slow continuum (", round(variancePhyloPCA[1] * 100, 2), "%)"),
+       y = paste0("PC2 - Reproductive strategy (", round(variancePhyloPCA[2] * 100, 2), "%)")) +
+  
+  # Customize theme for cleaner visuals
+  theme_bw() +
+  theme(
+    legend.position = "none",  # Remove legend (not needed in this case)
+    panel.grid = element_blank(),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14, face = "bold")
+  )
+
+# Manually add each expression using annotate()
+for (i in seq_along(LHTSymbols)) {
+  Fig_S15 <- Fig_S15 + annotate(
+    "text",
+    x = phyloPCA$L[,"PC1"][i]*5.5,
+    y = phyloPCA$L[,"PC2"][i]*5.5,
+    label = LHTSymbols[[i]],
+    color = "black",
+    size = 6,
+    parse = TRUE
+  )
+}
+
+Fig_S15
+
+
 # # Plot pPCA
 # plot(phyloPCA)
 # 
-# #Invert order on PC1 for interpretability
-# phyloPCA$S[,"PC1"] <- -phyloPCA$S[,"PC1"]
-# phyloPCA$L[,"PC1"] <- -phyloPCA$L[,"PC1"]
+
 # 
 # pdf("Phylo PCA.pdf")
 #   plot(phyloPCA$S[,"PC1"], phyloPCA$S[,"PC2"], 
