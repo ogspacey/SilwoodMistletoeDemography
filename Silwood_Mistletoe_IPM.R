@@ -1,6 +1,6 @@
 ### Silwood Mistletoe Vital Rate Regressions, Trade-offs and IPM
 ### Oliver G. Spacey, Owen R. Jones, Sydne Record, Arya Y. Yue, Wenyi Liu, Alice Rosen, Michael Crawley, Chris J. Thorogood, Roberto Salguero-Gómez
-### 21.03.2024
+### 28.03.2024
 
 # Pre-amble ---------------------------------------------------------------
 # Clear environment
@@ -251,7 +251,15 @@ for(year in years){
 }
 
 # Calculate how many mistletoes seen each year
-colSums(intens_df[,-1])
+pop_sizes <- colSums(intens_df[,-1])
+inst_lambda <- list()
+for(i in 1:7){
+  inst_lambda[i] <- pop_sizes[i+1]/pop_sizes[i]
+}
+unlist(inst_lambda)
+
+# Mean number of mistletoes seen each year - mean population size
+mean_pop_size <- mean(colSums(intens_df[,-1]))
 
 # Calculate maximum parasite load observed for each tree
 intens_df$Max_I <- pmax(intens_df$I_14,
@@ -1206,8 +1214,22 @@ Fig_3
 # Seeds germinate and establish for 3 years before they can be observed (in their 3rd year)
 # I.e., it takes three time-steps for fruiting individuals to contribute to the juvenile pool
 # As we lack data on germination and establishment success, we estimate an initial value of s0 linking fruiting in t to juvenile recruitment in t+3
-# Individuals produce berries directly proportional to the number of terminal shoots, which is directly proportional to their size - b = k * e^(log(a))
-# According to Mellado and Zamora, 2014, 1m^2 (10000cm^2) of mistletoe produces ~2000 berries, suggesting that 2000 = k * e(log(10000)) -> k = 0.2
+# Originally, individuals were considered to produce berries directly proportional to the number of terminal shoots, which is directly proportional to their size - b = k * e^(log(a))
+# According to Mellado and Zamora, 2014, 1m^2 (10000cm^2) of mistletoe produces ~2000 berries, suggesting that 2000 = k * exp(ln(10000)) => k = 0.2
+#  k <- 0.2
+
+# # This exponential model led to unrealistic estimates of population growth, such that a saturating, logistic relationship was assumed instead, with midpoint of half the largest size
+max_size <- max(wrangled_by_yr_df$logArea, na.rm = TRUE)
+# # According to Mellado and Zamora, 2014, 1m^2 (10000cm^2) of mistletoe produces ~2000 berries, suggesting that 2000 = k/(1+exp((-1)*(ln(10000)-0.5*(max_size+min_size_rep))))
+k <- 2000*(1+exp((-1)*(log(10000)-0.5*(max_size + min_size_rep))))
+# 
+# # Plot berry number against size
+sizes <- seq(min_size_rep, max_size, length.out = 50)
+berry_nos <- k/(1+exp((-1)*(sizes-0.5*(max_size + min_size_rep))))
+ggplot(data = data.frame(sizes, berry_nos), aes(x = sizes, y = berry_nos)) +
+   geom_line() +
+   theme_bw()
+
 # As per Lucas et al., 2019, Fertility from t to t + 3 = (total no. offspring in t+3)/(total no. berries in t) * (no. berries for individual in t) = Σrec/Σb * b(z)
 # Via two intermediary stages: 1-year-old seedlings (S1) and 2-year-old seedlings (S2)
 # Σrec(t+3)/Σb(t) = S1(t+1)/b(t) * S2(t+2)/S1(t+1) * rec(t+3)/S2(t+2) = s0 * s1 * s2
@@ -1220,7 +1242,7 @@ Fig_3
 get.s0 <- function(k){
   # Filter long df for only fruiting individuals and estimate berry production
   fru_df <- filter(wrangled_by_yr_df, Fruit == 1) %>%
-            mutate(Berry_no = k*exp(logArea))
+            mutate(Berry_no = k / (1+exp((-1)*(logArea-0.5*(max_size + min_size_rep)))))
   # Calculate total number of berries each year
   berries_df <- fru_df %>%
                 group_by(Year) %>%
@@ -1262,13 +1284,16 @@ for(i in 1:length(ks)){
 s0s <- unlist(s0_ls)
 plot(x = ks, y = s0s)
 
-# k = 0.2 suggests s0 ~ 0.05, but survival difficult to estimate, so s0 will be fixed such that λ=1.1
-get.s0(0.2)
+# Chosen k suggests s0 ~ 0.05, but survival difficult to estimate, so s0 will be fixed such that λ=1.1
+get.s0(k)
 
-# Find distribution of new recruit sizes
+
+# Find distribution of new recruit (3-year-old) sizes
 # Filter only new recruits
 rec_only_df <- filter(wrangled_by_yr_df, 
                       Year >= 17 & Status == "FC" & Stage == "Juvenile")
+
+# Designate a cut-off size
 
 # Figure S5
 # Create new x label
@@ -1358,16 +1383,15 @@ params <- data.frame(
   fru.int        = summary(fru_area_ht_glm)$coefficients[1,1],
   fru.area.slope = summary(fru_area_ht_glm)$coefficients[2,1],
   fru.ht.slope   = summary(fru_area_ht_glm)$coefficients[3,1],
-  k.berries      = 0.2, 
-  s0             = get.s0(0.2),  
-  s1             = get.s0(0.2),  
-  s2             = get.s0(0.2),
+  k.berries      = k, 
+  s0             = get.s0(k),  
+  s1             = get.s0(k),  
+  s2             = get.s0(k),
   rec.area.mean  = mean(rec_only_df$logArea),
   rec.area.sd    = sd(rec_only_df$logArea),
   rec.ht.mean    = mean(wrangled_by_yr_df$Height),
   rec.ht.sd      = sd(wrangled_by_yr_df$Height)
 )
-
 
 #Create function to build IPM and plot it at a reference height
 build.ipm <- function(params, mesh, ref_ht){
@@ -1447,11 +1471,11 @@ build.ipm <- function(params, mesh, ref_ht){
   meshz <- mesh
   meshh <- mesh
   
-  # Set limits for integration
-  Ljz <- 0.99 * min(wrangled_by_yr_df$logArea, na.rm = TRUE)
+  # Set limits for integration - may impact eviction
+  Ljz <- 0.95 * min(wrangled_by_yr_df$logArea, na.rm = TRUE)
   Ujz <- min_size_rep
-  Lh  <- 0.99 * min(wrangled_by_yr_df$Height, na.rm = TRUE)
-  Uh  <- 1.01 * max(wrangled_by_yr_df$Height, na.rm = TRUE)
+  Lh  <- 0.95 * min(wrangled_by_yr_df$Height, na.rm = TRUE)
+  Uh  <- 1.05 * max(wrangled_by_yr_df$Height, na.rm = TRUE)
   
   # Set bin size and midpoints for each trait variable
   
@@ -1508,7 +1532,7 @@ build.ipm <- function(params, mesh, ref_ht){
   
   # Set limits for integration - adults
   Laz <- min_size_rep
-  Uaz <- 1.01 * max(wrangled_by_yr_df$logArea, na.rm = TRUE)
+  Uaz <- 1.05 * max(wrangled_by_yr_df$logArea, na.rm = TRUE)
   
   # Set bin size and midpoints for each trait variable - juvenile size and height as before
   
@@ -1870,7 +1894,7 @@ build.ipm <- function(params, mesh, ref_ht){
 
 # Build initial IPM with 100 meshpoints and reference height as mean height
 mean_ht <- params$rec.ht.mean
-outputs <- build.ipm(params = params, mesh = 50, ref_ht = mean_ht)
+outputs <- build.ipm(params = params, mesh = 100, ref_ht = mean_ht)
 lambda(outputs[["K"]])
 
 # Extract lambda and life history traits from IPM
@@ -1904,11 +1928,12 @@ get.traits <- function(outputs){
   outputs[[10]] <- outputs[["Lmean"]] - outputs[["La"]]
   names(outputs)[10] <- "Lamean"
 
+  # Calculate max lifespan
+  outputs[[11]] <- longevity(matU = outputs[["P"]], start = 3, lx_crit = 1/mean_pop_size)
+  
   # Return outputs
   return(outputs)
 }
-
-for(lx_crit in lx_crits){}
 
 # Extract initial life history traits
 traits <- get.traits(outputs)
@@ -1919,14 +1944,14 @@ lambdas <- list()
 s0s <- list()
 
 # Begin with initial lambda
-lambdas[[1]] <- traits[["Lambda"]]
+lambdas[[1]] <- 1.12
 
 # Start with s0 derived from k = 0.2
-s0s[[1]] <- get.s0(params$k.berries)
+s0s[[1]] <- 0.65
 
 # Initialise loop, set number of iterations and set progress bar
 i <- 1
-iter <- 10
+iter <- 5
 pb <- txtProgressBar(min = 0, max = iter, style = 3)
 
 # If lambda > 1.11, decrease s0; if lambda < 1.09, increase s0 
@@ -1941,13 +1966,17 @@ while(abs(1.1 - as.numeric(lambdas[[i]])) > 0.01 & i < iter) {
     params$s2 <- params$s0
   }
   s0s[[i+1]] <- params$s0
-  outputs <- build.ipm(params = params, mesh = 50, ref_ht = params$rec.ht.mean)
+  outputs <- build.ipm(params = params, mesh = 100, ref_ht = params$rec.ht.mean)
   names(outputs) <- c("P", "F", "K", "mesh")
   lambdas[[i+1]] <- lambda(outputs[["K"]])
   setTxtProgressBar(pb, i)
   i <- i + 1
 }
 close(pb)
+
+
+# Plot MLE across bins
+
 
 # # Create lists to store longevities and s0 values
 # longs <- list()

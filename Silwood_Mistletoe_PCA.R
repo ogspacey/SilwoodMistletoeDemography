@@ -531,7 +531,7 @@ for (i in allLHTs){
 # Traits left unaltered:
 # Lambda, R0
 
-# Figure S10
+# Figure S12
 
 # Traits to be log-transformed:
 # GenTfun
@@ -760,17 +760,18 @@ diag.panel <- function(x, ...) {
   expr <- LHTSymbols[i]
   
   # Draw only the expression
-  text(0.5, 0.5, labels = expr, cex = 6, font = 1)
+  text(0.5, 0.5, labels = expr, cex = 2, font = 1)
 }
 
 
 # Plotting the correlation matrix
-Fig_S14 <- pairs(output[, LHTs],
+Fig_S13 <- pairs(output[, LHTs],
                  labels = rep("", length(LHTs)),
                  upper.panel = panel.cor,
                  lower.panel = panel.smooth,
                  diag.panel = diag.panel)
-Fig_S14
+Fig_S13
+ggsave("Figure S13.png", Fig_S13)
 
 # Correlation in absolute terms
 corr <- abs(cor(output[, LHTs], use = "complete.obs"))
@@ -909,18 +910,6 @@ variancePCA
 pca$x[,"PC1"] <- - pca$x[,"PC1"]
 pca$rotation[,"PC1"] <- - pca$rotation[,"PC1"]
 
-# par(mfrow = c(1,1))
-# # Plot PCA
-#   plot(pca$x[,"PC1"], pca$x[,"PC2"], 
-#        col=alpha("black",0.5), pch=21, ylim=c(-4, 5), xlim=c(-4, 4),
-#        xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
-#   arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
-#   arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
-#   points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16)
-#   points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
-#   points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
-#   text(pca$rotation[,"PC1"]*6, pca$rotation[,"PC2"]*6, LHTSymbols, col=LHTcols,cex=1.2)
-
 # Plot PCA with species names
 # Assuming pca is the result of `prcomp()`
 # Create a data frame for the PCA results (with x and rotation components)
@@ -953,7 +942,7 @@ sil_df <- data.frame(
           subset(pca_data, rownames(pca_data) == "Pedicularis furbishiae")$PC2*6,
           subset(pca_data, rownames(pca_data) == "Helianthus divaricatus")$PC2*3.9,
           subset(pca_data, rownames(pca_data) == "Brassica napus")$PC2,
-          subset(pca_data, rownames(pca_data) == "Abies magnifica")$PC2,,
+          subset(pca_data, rownames(pca_data) == "Abies magnifica")$PC2,
           subset(pca_data, rownames(pca_data) == "Sequoia sempervirens")$PC2*1.2,
           subset(pca_data, rownames(pca_data) == "Escontria chiotilla")$PC2*0.8,
           subset(pca_data, rownames(pca_data) == "Calocedrus macrolepis")$PC1),
@@ -989,7 +978,7 @@ pca_rotations$Symbols <- LHTSymbols
 variancePCA <- (pca$sdev^2) / sum(pca$sdev^2)
 
 # Plot PCA
-Fig_4 <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
+PCA_plot <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
   # Points for the PCA plot
   geom_point(color = alpha("black", 0.3), shape = 21, size = 2.3) +
   
@@ -1032,7 +1021,6 @@ Fig_4 <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
             aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
             color = colours(6)[5], size = 5) +
   
-  
   # Axis labels and plot title with variance explained
   labs(x = paste0("PC1 - Fast-slow continuum (", round(variancePCA[1] * 100, 2), "%)"),
        y = paste0("PC2 - Reproductive strategy (", round(variancePCA[2] * 100, 2), "%)")) +
@@ -1048,7 +1036,7 @@ Fig_4 <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
 
 # Manually add each expression using annotate()
 for (i in seq_along(LHTSymbols)) {
-  Fig_4 <- Fig_4 + annotate(
+  PCA_plot <- PCA_plot + annotate(
     "text",
     x = pca_rotations$PC1[i] * 5.5,
     y = pca_rotations$PC2[i] * 5.5,
@@ -1059,33 +1047,7 @@ for (i in seq_along(LHTSymbols)) {
   )
 }
 
-Fig_4
 
-# imputedOutput$PC1 <- pca$x[,"PC1"]
-# imputedOutput$PC2 <- pca$x[,"PC2"]
-# 
-# 
-# # Colour points by growth form
-# gf_cols <- as.factor(unique(imputedOutputRes$Growth_form))
-# col_palette <- c("lightgreen", "green", "darkgreen", "turquoise", "lightblue", "blue", "darkblue", "violet", "purple")  # Adjust colors to match level
-# col_vector <- col_palette[as.numeric(gf_cols)]
-# col_vector[is.na(gf_cols)] <- "gray"  # Color for NAs
-# 
-# # Plot PCA
-# plot(pca$x[,"PC1"], pca$x[,"PC2"], 
-#      col=alpha(col_vector, 0.5), pch=16, ylim=c(-4, 5), xlim=c(-4, 4),
-#      xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
-# arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
-# arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
-# points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16, cex = 1.5)
-# text(pca$x["Viscum album","PC1"]*1.4, pca$x["Viscum album","PC2"]*1.4, labels = "V. album", cex = 1.2, col = "red")
-# points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16, cex = 1.5)
-# text(pca$x["Thesium subsucculentum","PC1"]*3, pca$x["Thesium subsucculentum","PC2"]*(-0.5), labels = "T. subsucculentum", cex = 1.2, col = "darkorange")
-# points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16, cex = 1.5)
-# text(pca$x["Pedicularis furbishiae","PC1"]*1.4, pca$x["Pedicularis furbishiae","PC2"]*1.7, labels = "P. furbishiae", cex = 1.2, col = "brown")
-# text(pca$rotation[,"PC1"]*5.5, pca$rotation[,"PC2"]*5.5, LHTSymbols, col=LHTcols,cex=1.2)
-# legend("topright", legend=c(levels(gf_cols), "NA"), col=c(col_palette, "gray"), pch=19)
-# 
 # PCA with phylogeny
 # Scale values because phyl.pca does not do it, and otherwise PCA is very stretched out on PC1
 outputPhyl <- imputedOutput
@@ -1180,7 +1142,7 @@ img <- readPNG("Thesium_silhouette.png")
 grob_img <- rasterGrob(img, interpolate = TRUE)
 
 # Plot pPCA
-Fig_S15 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
+Fig_5 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
   # Points for the PCA plot
   geom_point(color = alpha("black", 0.3), shape = 21, size = 2.3) +
   
@@ -1214,24 +1176,6 @@ Fig_S15 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
                size = 0.8, color = "white") +
   
   # Points for specific species and their labels
-  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
-             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
-  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
-            aes(x = PC1 * 1.4, y = PC2 * 1.4, label = "V. album"), 
-            color = colours(6)[5], size = 5) +
-  
-  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
-             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
-  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
-            aes(x = PC1 * 2.5, y = PC2 * -1.5, label = "T. subsucculentum"), 
-            color = colours(6)[5], size = 5) +
-  
-  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
-             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
-  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
-            aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
-            color = colours(6)[5], size = 5) +
-  
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Sequoia sempervirens"), 
              aes(x = PC1, y = PC2), color = "grey", size = 3) +
   
@@ -1256,6 +1200,24 @@ Fig_S15 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Araucaria cunninghamii"),
              aes(x = PC1, y = PC2), color = "grey", size = 3) +
   
+  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
+             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
+  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
+            aes(x = PC1 * 1.4, y = PC2 * 1.4, label = "V. album"), 
+            color = colours(6)[5], size = 5) +
+  
+  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
+             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
+  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
+            aes(x = PC1 * 2.5, y = PC2 * -1.5, label = "T. subsucculentum"), 
+            color = colours(6)[5], size = 5) +
+  
+  geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
+             aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
+  geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
+            aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
+            color = colours(6)[5], size = 5) +
+  
   # Axis labels and plot title with variance explained
   labs(x = paste0("PC1 - Fast-slow continuum (", round(variancePhyloPCA[1] * 100, 2), "%)"),
        y = paste0("PC2 - Reproductive strategy (", round(variancePhyloPCA[2] * 100, 2), "%)")) +
@@ -1271,7 +1233,7 @@ Fig_S15 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
 
 # Manually add each expression using annotate()
 for (i in seq_along(LHTSymbols)) {
-  Fig_S15 <- Fig_S15 + annotate(
+  Fig_5 <- Fig_5 + annotate(
     "text",
     x = phyloPCA$L[,"PC1"][i]*5.5,
     y = phyloPCA$L[,"PC2"][i]*5.5,
@@ -1282,4 +1244,5 @@ for (i in seq_along(LHTSymbols)) {
   )
 }
 
-Fig_S15
+Fig_5
+ggsave("Figure 5.png", Fig_5)
