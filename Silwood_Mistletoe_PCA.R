@@ -1,6 +1,5 @@
 ### Silwood Park Mistletoe - PCA
-### Oliver G. Spacey, Owen R. Jones, Sydne Record, Arya Y. Yue, Wenyi Liu, Alice Rosen, Michael Crawley, Chris J. Thorogood, Roberto Salguero-Gómez
-### 09.04.2025
+### Oliver G. Spacey, Owen R. Jones, Sydne Record, Sharon D. Janssen, Arya Y. Yue, Wenyi Liu, Alice Rosen, Chris J. Thorogood, Roberto Salguero-Gómez
 ### Adapted from Salguero-Gómez, 2024
 
 # Pre-amble -----------------------------------------------------------
@@ -531,7 +530,7 @@ for (i in allLHTs){
 # Traits left unaltered:
 # Lambda, R0
 
-# Figure S12
+# Figure S10
 
 # Traits to be log-transformed:
 # GenTfun
@@ -697,33 +696,6 @@ plotTree(ladderize(tree2),type="arc",fsize=.7, depth=2,
          lwd=1,ftype="i",arc_height=.2)
 dev.off()
 
-# Create .pdf of world map
-# worldmap <- getMap(resolution = "coarse")
-# pdf("Worldmap.pdf", h = 8, w = 15)
-#   plot(worldmap, col = "grey20", 
-#   fill = T, border = "grey40",
-#   xlim = c(-180, 180), ylim = c(-90, 90),
-#   bg = "white",
-#   asp = 1, wrap=c(-180,180))
-#   points(output$Lon,output$Lat,pch=21,col='black',cex=1.7)
-# dev.off()
-
-# Create .pdf of world map with species names
-# pdf("Worldmap species names.pdf", h = 8, w = 15)
-#   plot(worldmap, col = "white", 
-#   fill = T, border = "grey40",
-#   xlim = c(-180, 180), ylim = c(-90, 90),
-#   bg = "white",
-#   asp = 1, wrap=c(-180,180))
-#   text(output$Lon, output$Lat, output$SpeciesAccepted, cex=.7)
-# dev.off()
-
-# Create list of papers used in this study
-# ListPapers <- outputComplete[,c("SpeciesAccepted", "CommonName", "Class", "Family", "Authors", "Journal", "SourceType", "YearPublication", "DOI_ISBN","Sociality","Bodymass")]
-# ListPapers <- as.data.frame(ListPapers)
-# ListPapers$Journal[which(is.na(ListPapers$Journal))] <- ListPapers$Source[which(is.na(ListPapers$Journal))]
-# ListPapers <- ListPapers[,-which(names(ListPapers)=="SourceType")]
-
 # Assessing "missingness" of data -------------------------------------------
 
 # Perform pair-wise correlations of LHTs to evaluate co-linearities
@@ -760,7 +732,7 @@ diag.panel <- function(x, ...) {
   expr <- LHTSymbols[i]
   
   # Draw only the expression
-  text(0.5, 0.5, labels = expr, cex = 2, font = 1)
+  text(0.5, 0.5, labels = expr, cex = 6, font = 1)
 }
 
 
@@ -771,7 +743,6 @@ Fig_S13 <- pairs(output[, LHTs],
                  lower.panel = panel.smooth,
                  diag.panel = diag.panel)
 Fig_S13
-ggsave("Figure S13.png", Fig_S13)
 
 # Correlation in absolute terms
 corr <- abs(cor(output[, LHTs], use = "complete.obs"))
@@ -1021,6 +992,7 @@ PCA_plot <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
             aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
             color = colours(6)[5], size = 5) +
   
+  
   # Axis labels and plot title with variance explained
   labs(x = paste0("PC1 - Fast-slow continuum (", round(variancePCA[1] * 100, 2), "%)"),
        y = paste0("PC2 - Reproductive strategy (", round(variancePCA[2] * 100, 2), "%)")) +
@@ -1076,7 +1048,6 @@ phyloPCA$L[,"PC1"] <- -phyloPCA$L[,"PC1"]
 phylo_pca_data <- data.frame(PC1 = phyloPCA$S[,"PC1"], 
                              PC2 = phyloPCA$S[,"PC2"])
 phylo_pca_data$Species <- row.names(phylo_pca_data)
-
 
 # Create rotations data frame
 phylo_pca_rotations <- data.frame(PC1 = phyloPCA$L[,"PC1"],
@@ -1203,20 +1174,21 @@ Fig_5 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
              aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
   geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album"), 
-            aes(x = PC1 * 1.4, y = PC2 * 1.4, label = "V. album"), 
+            aes(x = PC1 * 1.4, y = PC2 * 1.9, label = "italic('V. album')"), parse = TRUE, 
             color = colours(6)[5], size = 5) +
   
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
              aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
   geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
-            aes(x = PC1 * 2.5, y = PC2 * -1.5, label = "T. subsucculentum"), 
+            aes(x = PC1 * 2.5, y = PC2 * -1.4, label = "italic('T. subsucculentum')"), parse = TRUE, 
             color = colours(6)[5], size = 5) +
   
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
              aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
   geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
-            aes(x = PC1 * 1.4, y = PC2 * 2.3, label = "P. furbishiae"), 
+            aes(x = PC1 * 0.3, y = PC2 * 3.2, label = "italic('P. furbishiae')"), parse = TRUE, 
             color = colours(6)[5], size = 5) +
+  
   
   # Axis labels and plot title with variance explained
   labs(x = paste0("PC1 - Fast-slow continuum (", round(variancePhyloPCA[1] * 100, 2), "%)"),
@@ -1246,3 +1218,4 @@ for (i in seq_along(LHTSymbols)) {
 
 Fig_5
 ggsave("Figure 5.png", Fig_5)
+
