@@ -1,5 +1,5 @@
 ### Silwood Park Mistletoe - PCA
-### Oliver G. Spacey, Owen R. Jones, Sydne Record, Sharon D. Janssen, Arya Y. Yue, Wenyi Liu, Alice Rosen, Chris J. Thorogood, Roberto Salguero-Gómez
+### Oliver G. Spacey, Owen R. Jones, Sydne Record, Arya Y. Yue, Wenyi Liu, Alice Rosen, Michael Crawley, Chris J. Thorogood, Roberto Salguero-Gómez
 ### Adapted from Salguero-Gómez, 2024
 
 # Pre-amble -----------------------------------------------------------
@@ -531,7 +531,6 @@ for (i in allLHTs){
 # Lambda, R0
 
 # Figure S10
-
 # Traits to be log-transformed:
 # GenTfun
 output$GenTfun <- log(output$GenTfun)
@@ -557,44 +556,7 @@ hist(output$Lamean, breaks = 10, main = "Reproductive window", xlab = "Transform
 # Examine distribution of first non-propagule stages
 hist(output$notProp)
 
-# Growth form data -----------------------------------------------------------
-# Read in data to add Raunkiaer growth form
-growth_form_df <- read.csv("Raunkiaer_growth_forms.csv")
-
-# Replace "_" with " " in growth form data frame
-growth_form_df$species <- sub("_", " ", growth_form_df$species)
-
-# Calculate how many plant species present in the growth form data frame
-length(which(output$SpeciesAccepted %in% growth_form_df$species))
-# 319
-#out of
-nrow(output)
-# 499
-
-# Subset growth form data frame by those species in demographic data set
-growth_form_sp <- growth_form_df[which(growth_form_df$species %in% output$SpeciesAccepted), c("species","raunkier")]
-
-# Rename "species" column for merging
-names(growth_form_sp)[names(growth_form_sp) == "species"] <- "SpeciesAccepted"
-
-# Add growth forms onto output
-output <- merge(output, growth_form_sp, by = "SpeciesAccepted", all.x = T)
-
-# Rename "raunkier" column for merging
-names(output)[names(output) == "raunkier"] <- "Growth_form"
-
-# Find species for which growth form is missing
-growth_missing_sp <- output[which(is.na(output$Growth_form)), "SpeciesAccepted"]
-# 180 species
-
-# Viscum album is an epiphyte by the Raunkiaer classification
-output[which(output$SpeciesAccepted == "Viscum album"),]$Growth_form <- "Epiphyte"
-
-# Plot distributions of growth forms
-ggplot(data = output, aes(x = Growth_form)) +
-  geom_bar() +
-  theme_bw()
-
+# Designate parasites -----------------------------------------------------------
 
 # Designate parasitic plants
 output <- mutate(output, Parasite = case_when(SpeciesAccepted %in% c("Viscum album", 
@@ -737,12 +699,12 @@ diag.panel <- function(x, ...) {
 
 
 # Plotting the correlation matrix
-Fig_S13 <- pairs(output[, LHTs],
+Fig_S14 <- pairs(output[, LHTs],
                  labels = rep("", length(LHTs)),
                  upper.panel = panel.cor,
                  lower.panel = panel.smooth,
                  diag.panel = diag.panel)
-Fig_S13
+Fig_S14
 
 # Correlation in absolute terms
 corr <- abs(cor(output[, LHTs], use = "complete.obs"))
@@ -779,7 +741,6 @@ dev.off()
 pdf("Missing LHTs visualised.pdf")
 vis_miss(output[, LHTs])
 dev.off()
-
 
 # Impute missing data -----------------------------------------------------
 
@@ -880,6 +841,18 @@ variancePCA
 #Invert order on PC1 for interpretability
 pca$x[,"PC1"] <- - pca$x[,"PC1"]
 pca$rotation[,"PC1"] <- - pca$rotation[,"PC1"]
+
+# par(mfrow = c(1,1))
+# # Plot PCA
+#   plot(pca$x[,"PC1"], pca$x[,"PC2"], 
+#        col=alpha("black",0.5), pch=21, ylim=c(-4, 5), xlim=c(-4, 4),
+#        xlab=paste0("PC1 (",round(variancePCA[1]*100,2),"%)"),ylab=paste0("PC2 (",round(variancePCA[2]*100,2),"%)"))
+#   arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=6, col=LHTcols)
+#   arrows(0,0, pca$rotation[,"PC1"]*5, pca$rotation[,"PC2"]*5, lwd=3, col="white")
+#   points(pca$x["Viscum album","PC1"], pca$x["Viscum album","PC2"], col = "red", pch = 16)
+#   points(pca$x["Thesium subsucculentum","PC1"], pca$x["Thesium subsucculentum","PC2"], col = "darkorange", pch = 16)
+#   points(pca$x["Pedicularis furbishiae","PC1"], pca$x["Pedicularis furbishiae","PC2"], col = "brown", pch = 16)
+#   text(pca$rotation[,"PC1"]*6, pca$rotation[,"PC2"]*6, LHTSymbols, col=LHTcols,cex=1.2)
 
 # Plot PCA with species names
 # Assuming pca is the result of `prcomp()`
