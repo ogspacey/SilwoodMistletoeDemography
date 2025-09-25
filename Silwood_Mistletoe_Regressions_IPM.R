@@ -85,7 +85,7 @@ for(i in 1:nrow(mst_hst_df)) {
 }
 nrow(subset(mst_hst_df, Missed == 0))
 nrow(subset(mst_hst_df, Missed == 0))/nrow(mst_hst_df)
-# 454 NAs out of 3183 detections affecting 430 out of 740 (58.1%) mistletoes in at least one year
+# 454 NAs out of 3394 detections affecting 430 out of 740 (58.1%) mistletoes in at least one year
 
 # Estimate detectability
 NAs/known_presences
