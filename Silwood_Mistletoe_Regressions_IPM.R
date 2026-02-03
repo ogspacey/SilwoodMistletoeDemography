@@ -351,6 +351,15 @@ intens_df$Max_I <- pmax(intens_df$I_14,
 # Add host metadata to PL data frame
 intens_df <- full_join(intens_df, hst_df_raw)
 
+# Calculate lambda empirically
+pop_sizes <- colSums(intens_df[, 2:11])
+emp_lambdas <- list()
+for(i in 1:(length(pop_sizes) - 1)){
+  emp_lambdas[i] <- pop_sizes[i+1] / pop_sizes[i]
+}
+emp_lambda <- mean(unlist(emp_lambdas))
+# Empirical lambda of 1.08
+
 # Separate stages ---------------------------------------------------------
 # Separate stages based on size at minimum reproduction
 # This will only be used for regressions where only adults are being considered, and for designating recruits
@@ -666,9 +675,9 @@ sur_mod_sel <- bind_cols(data.frame(Vital_rate = "Survival"),
 # Neither area nor height predict survival across all mistletoes; quadratic model does not improve fit
 # For IPM, use Survival ~ logArea as simplest model which incorporates the common state variable
 
-# Test model fit for chosen vital rate regression
+# Test model fit for chosen vital rate regression - Fig_S5a-b
 par(mfrow = c(1, 2))
-plot(residuals(sur_area_glmm) ~ fitted(sur_area_glmm), main = "residuals v.s. Fitted")
+plot(residuals(sur_area_glmm) ~ fitted(sur_area_glmm), main = "Residuals vs Fitted values", xlab = "Fitted value", ylab = "Residuals")
 qqnorm(residuals(sur_area_glmm))
 
 # Check effect with outliers included
@@ -692,13 +701,16 @@ intens_long_df$Year_t0 <- as.integer(intens_long_df$Year_t0)
 # Join long data frame with survival data
 wrangled_intens_df <- wrangled_df %>% right_join(intens_long_df, by = c("Host_ID", "Year_t0"))
 
-# Plot survival as a function of intensity - ADD TO SUPPLEMENT
-ggplot(data = wrangled_intens_df, aes(x = log(Intensity), y = Survive)) +
-  geom_point() +
+# Plot survival as a function of intensity
+Fig_S5a <- ggplot(data = wrangled_intens_df, aes(x = log(Intensity), y = Survive))  +
+  geom_point(size = 1, alpha = 0.5, col = colours(6)[1]) +
   stat_smooth(method = "glm", 
-              method.args = list(family = binomial)) +
-  labs(x = "log(Intensity)", y = "Probability of survival to t1") +
-  theme_bw()
+              method.args = list(family = binomial), 
+              col = colours(6)[1]) +
+  labs(x = "log(Intensity)", y = l_sur) +
+  theme_bw() + 
+  theme(axis.title = element_text(size = 13))
+Fig_S5a
 
 # Model Survival ~ Intensity with individual ID as random effect
 sur_int_glmm <- glmer(Survive ~ log(Intensity) + (1 | Indiv_ID), 
@@ -804,7 +816,7 @@ AIC(gro_area_quad_mem) - AIC(gro_area_mem)
 
 # Test model fit for chosen vital rate regression
 par(mfrow = c(1, 2))
-plot(residuals(gro_area_quad_mem) ~ fitted(gro_area_quad_mem), main = "residuals v.s. Fitted")
+plot(residuals(gro_area_quad_mem) ~ fitted(gro_area_quad_mem), main = "Residuals vs Fitted values", xlab = "Fitted value", ylab = "Residuals")
 qqnorm(residuals(gro_area_quad_mem))
 
 # Check effect with outliers included
@@ -819,12 +831,16 @@ summary(gro_area_quad_wo_mem)
 wrangled_intens_df$Growth_t0_t1 <- (wrangled_intens_df$logArea_t1 - wrangled_intens_df$logArea_t0)/wrangled_intens_df$logArea_t0
 
 # Plot inherent growth rate from t0 to t1 against intensity in time t0
-ggplot(data = wrangled_intens_df, aes(x = log(Intensity), y = Growth_t0_t1)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_bw() 
+Fig_S5b <- ggplot(data = wrangled_intens_df, aes(x = log(Intensity), y = Growth_t0_t1)) +
+  geom_point(size = 1, alpha = 0.2, col = colours(6)[6]) +
+  geom_smooth(data = wrangled_intens_df, method = "lm",
+              col = colours(6)[6]) +
+  labs(x = "log(Intensity)", y = l_gro) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 13))
+Fig_S5b
 
-# Model Growth ~ log(Area) with Indiv_ID as random effect - ADD TO SUPPLEMENT
+# Model Growth ~ Intensity with Indiv_ID as random effect
 gro_int_mem <- lmer(Growth_t0_t1 ~ log(Intensity) + (1 | Indiv_ID), 
                      data = wrangled_intens_df)
 summary(gro_int_mem)
@@ -907,7 +923,7 @@ fru_mod_sel <- bind_cols(data.frame(Vital_rate = "Fruiting"),
 
 # Test model fit for chosen vital rate regression
 par(mfrow = c(1, 2))
-plot(residuals(fru_area_ht_glmm) ~ fitted(fru_area_ht_glmm), main = "residuals v.s. Fitted")
+plot(residuals(fru_area_ht_glmm) ~ fitted(fru_area_ht_glmm), main = "Residuals vs Fitted values", xlab = "Fitted value", ylab = "Residuals")
 qqnorm(residuals(fru_area_ht_glmm))
 
 # Check effect with outliers included
@@ -922,12 +938,15 @@ intens_by_yr_df <- intens_long_df %>%
 wrangled_by_yr_intens_df <- wrangled_by_yr_df %>% right_join(intens_by_yr_df, by = c("Host_ID", "Year"))
 
 # Plot fruiting ~ log(Intensity)
-ggplot(data = wrangled_by_yr_intens_df, aes(x = log(Intensity), y = Fruit)) +
-  geom_point() +
+Fig_S5c <- ggplot(data = wrangled_by_yr_intens_df, aes(x = log(Intensity), y = Fruit)) +
+  geom_point(size = 1, alpha = 0.5, col = colours(6)[3]) +
   stat_smooth(method = "glm", 
-              method.args = list(family = binomial)) +
-  labs(x = "log(Intensity)", y = "Probability of fruiting in t0") +
-  theme_bw()
+              method.args = list(family = binomial),
+              col = colours(6)[3]) +
+  labs(x = "log(Intensity)", y = l_fru) +
+  theme_bw() +
+  theme(axis.title = element_text(size = 13))
+Fig_S5c
 
 # Model fruiting ~ log(Intensity) with Indiv_ID as random effect
 fru_intens_glmm <- glmer(Fruit ~ log(Intensity) + (1 | Indiv_ID), 
@@ -938,11 +957,13 @@ summary(fru_intens_glmm)
 
 # Test relationship between intensity and position on tree
 # Plot Height ~ log(Intensity)
-ggplot(data = wrangled_by_yr_intens_df, aes(x = log(Intensity), y = Height)) +
-  geom_point() +
-  stat_smooth(method = "lm") +
-  labs(x = "log(Intensity)", y = "Height in tree crown (m)") +
-  theme_bw()
+Fig_S5d <- ggplot(data = wrangled_by_yr_intens_df, aes(x = log(Intensity), y = Height)) +
+  geom_point(size = 1, alpha = 0.5, col = colours(6)[2]) +
+  stat_smooth(method = "lm", col = colours(6)[2]) +
+  labs(x = "log(Intensity)", y = "Height above ground (m)") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 15))
+Fig_S5d
 
 # Height (position) as a function of intensity - no random effect as each individual only has one height
 ht_intens_lm <- lm(Height ~ log(Intensity), 
@@ -971,13 +992,20 @@ mod_sel <- mod_sel %>%
 # Export as .csv
 write.csv(mod_sel, "Table_S1.csv")
 
-# Figure 1 ----------------------------------------------------------------
+# Figures ----------------------------------------------------------------
 # Combine all vital rate regressions into Figure 1 and export
 Fig_1 <- (Fig_1a + Fig_1b) / (Fig_1c + Fig_1d) / (Fig_1e + Fig_1f) + 
   plot_annotation(tag_levels = "a") &
   theme(plot.tag = element_text(size = 20))
 Fig_1
 ggsave("Figure 1.png", Fig_1)
+
+# Combine regressions against intensity into Figure S5 and export
+Fig_S5 <- (Fig_S5a + Fig_S5b) / (Fig_S5c + Fig_S5d) + 
+  plot_annotation(tag_levels = "a") &
+  theme(plot.tag = element_text(size = 15))
+Fig_S5
+ggsave("Figure S5.png", Fig_S5)
 
 # Recruitment -------------------------------------------------------------
 # Mistletoes are recruited through spread of seed from fruiting individuals to a suitable branch
@@ -992,54 +1020,21 @@ k <- 0.2
 wrangled_by_yr_df$Berries <- k * exp(wrangled_by_yr_df$logArea)
 
 # Plot berry production and export
-Fig_S5 <- ggplot(data = wrangled_by_yr_df, aes(x = logArea, y = Berries)) +
+Fig_S6 <- ggplot(data = wrangled_by_yr_df, aes(x = logArea, y = Berries)) +
   geom_line(col = colours(6)[3], size = 2) +
   theme_bw() +
   labs(x = xl, y = "Number of berries") +
   theme(axis.title = element_text(size = 18))
-Fig_S5
-ggsave("Figure S5.png", Fig_S5)
+Fig_S6
+ggsave("Figure S6.png", Fig_S6)
 
 # As per Lucas et al., 2008, Fertility from t to t + 3 = (total no. offspring in t+3)/(total no. berries in t) * (no. berries for individual in t) = Σrec/Σb * b(z)
 # Via two intermediary stages: 1-year-old seedlings (S1) and 2-year-old seedlings (S2)
 # Σrec(t+3)/Σb(t) = S1(t+1)/b(t) * S2(t+2)/S1(t+1) * rec(t+3)/S2(t+2) = s0 * s1 * s2
-# Initially assuming constant survival as we cannot measure establishment s0, survival of 1-year-old seedlings s1 or survival of 2-year-old seedlings s2, s0 = s1 = s2
+# Assume constant survival as we cannot measure establishment s0, survival of 1-year-old seedlings s1 or survival of 2-year-old seedlings s2, s0 = s1 = s2
 # therefore s0 = (Σrec/Σb)^(1/3)
 # Σb is estimated using the berry production constant k, where b = k*exp(z)
-# s0 will later be estimated more realistically through iteration to obtain λ=1.1
-
-# When the IPM is built using a particular berry production constant k, s0 will be estimated as follows
-get.s0 <- function(k, s1, s2){
-  # Filter long df for only fruiting individuals and estimate berry production
-  fru_df <- filter(wrangled_by_yr_df, Fruit == 1) %>%
-    mutate(Berry_no = k * exp(logArea))
-  # mutate(Berry_no = k/(1+exp((-1)*(logArea-0.5*(max_size + min_size_rep)))))
-  # Calculate total number of berries each year
-  berries_df <- fru_df %>%
-    group_by(Year) %>%
-    summarise(Total_berries = sum(Berry_no, na.rm = TRUE))
-  
-  # Estimate number of recruits in t+3
-  rec_df <- filter(wrangled_by_yr_df, 
-                   Status == "FC" & Stage == "Juvenile") %>%
-    count(Year)
-  
-  # Run through each year and estimate fertility from t to t+3: Σrec(t+3)/Σb(t)
-  f_t_t3 <- list()
-  for(year in 14:20){
-    b_t    <- berries_df[berries_df$Year == year, ]$Total_berries
-    rec_t3 <- rec_df[rec_df$Year == year+3, ]$n
-    f_t_t3[year - 13] <- rec_t3/b_t
-  }
-  # Estimate mean fertility across all 3-year periods
-  mean_f_t_t3 <- mean(unlist(f_t_t3))
-  
-  # Estimate s0
-  s0 <- mean_f_t_t3 / (s1 * s2)
-  
-  # Return s0
-  return(s0)
-}
+# s0 will alternatively be estimated through iteration to obtain λ = 1.1
 
 # Find distribution of new recruit (3-year-old) sizes
 # Filter only new recruits
@@ -1059,7 +1054,7 @@ ggplot(data = rec_only_df, aes(x = logArea)) +
         axis.text = element_text(size = 14))
 
 # Plot distribution of heights for all individuals to get a better height distribution
-Fig_S6b <- ggplot(data = wrangled_by_yr_df, aes(x = Height)) +
+Fig_S7b <- ggplot(data = wrangled_by_yr_df, aes(x = Height)) +
   geom_histogram(aes(y = ..density..), alpha = 0.3, fill = colours(6)[3], bins = 10) +
   stat_function(fun = function(x) {
     dnorm(x, mean = mean(wrangled_by_yr_df$Height), sd = sd(wrangled_by_yr_df$Height))
@@ -1067,7 +1062,7 @@ Fig_S6b <- ggplot(data = wrangled_by_yr_df, aes(x = Height)) +
   labs(x = "Height (m)", y = "") + 
   theme_bw() +
   theme(axis.title = element_text(size = 15))
-Fig_S6b
+Fig_S7b
 
 # Build IPM ---------------------------------------------------------------
 ## Extract parameters
@@ -1128,32 +1123,51 @@ S_1yo <- max(S_1yo)
 # Plot distribution of 1yo seedling sizes
 S_1yo_sd <- sd(rec_only_df$logArea)
 rec_distrib <- data.frame(x = seq(S_1yo - 4 * S_1yo_sd, S_1yo + 4 * S_1yo_sd, length.out = 100))
-Fig_S6a <- ggplot(data = rec_distrib, aes(x = x)) +
+Fig_S7a <- ggplot(data = rec_distrib, aes(x = x)) +
   stat_function(fun = dnorm, args = list(mean = S_1yo, sd = S_1yo_sd), color = colours(6)[3], size = 1) +
   labs(x = xl, y = "Density") +
   theme_bw() +
   theme(axis.title = element_text(size = 15))
 
-# Plot and export Figure S6
-Fig_S6 <- (Fig_S6a + Fig_S6b) + plot_annotation(tag_levels = "a") &
+# Plot and export Figure S7
+Fig_S7 <- (Fig_S7a + Fig_S7b) + plot_annotation(tag_levels = "a") &
   theme(plot.tag = element_text(size = 15))
-Fig_S6
-ggsave("Figure S6.png", Fig_S6)
-
-# Estimate survival for 2yo and 1yo juveniles
-data.frame(logArea_t0 = c(S_2yo, S_1yo))
-s2 <- exp(as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_2yo) / (1 + exp((as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_2yo)))
-s1 <- exp(as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_1yo) / (1 + exp((as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_1yo)))
-
-# Chosen k suggests s0 ~ 0.05, but survival difficult to estimate, so s0 will be fixed such that λ=1.1
-get.s0(k, s1, s2)
+Fig_S7
+ggsave("Figure S7.png", Fig_S7)
 
 # Adult fruiting ~ log(Area) + Height
 fru_area_ht_glm <- glm(Fruit ~ logArea + Height, 
                        data = wrangled_by_yr_df, family = binomial)
 summary(fru_area_ht_glm)
 
-# Set up model parameters from fitted models
+# Calculate cube root of 3-year survival
+# Filter long df for only fruiting individuals and estimate berry production
+fru_df <- filter(wrangled_by_yr_df, Fruit == 1) %>%
+  mutate(Berry_no = k * exp(logArea))
+# mutate(Berry_no = k/(1+exp((-1)*(logArea-0.5*(max_size + min_size_rep)))))
+# Calculate total number of berries each year
+berries_df <- fru_df %>%
+  group_by(Year) %>%
+  summarise(Total_berries = sum(Berry_no, na.rm = TRUE))
+
+# Estimate number of recruits in t+3
+rec_df <- filter(wrangled_by_yr_df, 
+                 Status == "FC" & Stage == "Juvenile") %>%
+  count(Year)
+
+# Run through each year and estimate fertility from t to t+3: Σrec(t+3)/Σb(t)
+f_t_t3 <- list()
+for(year in 14:20){
+  b_t    <- berries_df[berries_df$Year == year, ]$Total_berries
+  rec_t3 <- rec_df[rec_df$Year == year+3, ]$n
+  f_t_t3[year - 13] <- rec_t3/b_t
+}
+# Estimate mean survival rate across all 3-year periods
+mean_f_t_t3 <- mean(unlist(f_t_t3))
+s0_initial <- mean_f_t_t3^(1/3)
+s0_initial
+
+# Run IPM with establishment rate, 1yo and 2yo survival as constant
 params <- data.frame(
   sur.int    = summary(sur_area_glm)$coefficients[1,1],
   sur.slope  = summary(sur_area_glm)$coefficients[2,1],
@@ -1165,7 +1179,7 @@ params <- data.frame(
   fru.area.slope = summary(fru_area_ht_glm)$coefficients[2,1],
   fru.ht.slope   = summary(fru_area_ht_glm)$coefficients[3,1],
   k.berries      = k, 
-  s0             = get.s0(k, s1, s2),  
+  s0             = s0_initial,  
   rec.area.mean  = S_1yo,
   rec.area.sd    = S_1yo_sd,
   rec.ht.mean    = mean(wrangled_by_yr_df$Height),
@@ -1371,53 +1385,6 @@ mean_ht <- params$rec.ht.mean
 outputs <- build.ipm(params = params, mesh = 50, ref_ht = mean_ht)
 lambda(outputs[["K"]])
 
-# Calculate cube root of 3-year survival
-# Filter long df for only fruiting individuals and estimate berry production
-fru_df <- filter(wrangled_by_yr_df, Fruit == 1) %>%
-  mutate(Berry_no = k * exp(logArea))
-# mutate(Berry_no = k/(1+exp((-1)*(logArea-0.5*(max_size + min_size_rep)))))
-# Calculate total number of berries each year
-berries_df <- fru_df %>%
-  group_by(Year) %>%
-  summarise(Total_berries = sum(Berry_no, na.rm = TRUE))
-
-# Estimate number of recruits in t+3
-rec_df <- filter(wrangled_by_yr_df, 
-                 Status == "FC" & Stage == "Juvenile") %>%
-  count(Year)
-
-# Run through each year and estimate fertility from t to t+3: Σrec(t+3)/Σb(t)
-f_t_t3 <- list()
-for(year in 14:20){
-  b_t    <- berries_df[berries_df$Year == year, ]$Total_berries
-  rec_t3 <- rec_df[rec_df$Year == year+3, ]$n
-  f_t_t3[year - 13] <- rec_t3/b_t
-}
-# Estimate mean survival rate across all 3-year periods
-mean_f_t_t3 <- mean(unlist(f_t_t3))
-s0_initial <- mean_f_t_t3^(1/3)
-
-# Run alternative IPM with establishment rate, 1yo and 2yo survival as constant
-params <- data.frame(
-  sur.int    = summary(sur_area_glm)$coefficients[1,1],
-  sur.slope  = summary(sur_area_glm)$coefficients[2,1],
-  gro.int    = summary(gro_abs_area_quad_lm)$coefficients[1,1],
-  gro.slope  = summary(gro_abs_area_quad_lm)$coefficients[2,1],
-  gro.slope2 = summary(gro_abs_area_quad_lm)$coefficients[3,1],
-  gro.sd     = sd(resid(gro_abs_area_quad_lm)),
-  fru.int        = summary(fru_area_ht_glm)$coefficients[1,1],
-  fru.area.slope = summary(fru_area_ht_glm)$coefficients[2,1],
-  fru.ht.slope   = summary(fru_area_ht_glm)$coefficients[3,1],
-  k.berries      = k, 
-  s0             = s0_initial,  
-  rec.area.mean  = S_1yo,
-  rec.area.sd    = S_1yo_sd,
-  rec.ht.mean    = mean(wrangled_by_yr_df$Height),
-  rec.ht.sd      = sd(wrangled_by_yr_df$Height)
-)
-outputs_alternative <- build.ipm(params = params, mesh = 50, ref_ht = mean_ht)
-lambda(outputs_alternative[["K"]])
-
 # Extract lambda and life history traits from IPM
 get.traits <- function(outputs){
   
@@ -1454,9 +1421,6 @@ get.traits <- function(outputs){
 # Extract initial life history traits
 traits <- get.traits(outputs)
 
-# Extract initial life history traits for alternative
-traits_alt <- get.traits(outputs_alternative)
-
 # Fix establishment constant s0 - previous analysis, no longer necessary -------------------------------------------
 # Create lists to store lambdas and s0 values
 lambdas <- list()
@@ -1464,6 +1428,44 @@ s0s <- list()
 
 # Begin with initial lambda
 lambdas[[1]] <- lambda(outputs[["K"]])
+
+# When the IPM is built using a particular berry production constant k, s0 will be estimated as follows
+get.s0 <- function(k, s1, s2){
+  # Filter long df for only fruiting individuals and estimate berry production
+  fru_df <- filter(wrangled_by_yr_df, Fruit == 1) %>%
+    mutate(Berry_no = k * exp(logArea))
+  # mutate(Berry_no = k/(1+exp((-1)*(logArea-0.5*(max_size + min_size_rep)))))
+  # Calculate total number of berries each year
+  berries_df <- fru_df %>%
+    group_by(Year) %>%
+    summarise(Total_berries = sum(Berry_no, na.rm = TRUE))
+  
+  # Estimate number of recruits in t+3
+  rec_df <- filter(wrangled_by_yr_df, 
+                   Status == "FC" & Stage == "Juvenile") %>%
+    count(Year)
+  
+  # Run through each year and estimate fertility from t to t+3: Σrec(t+3)/Σb(t)
+  f_t_t3 <- list()
+  for(year in 14:20){
+    b_t    <- berries_df[berries_df$Year == year, ]$Total_berries
+    rec_t3 <- rec_df[rec_df$Year == year+3, ]$n
+    f_t_t3[year - 13] <- rec_t3/b_t
+  }
+  # Estimate mean fertility across all 3-year periods
+  mean_f_t_t3 <- mean(unlist(f_t_t3))
+  
+  # Estimate s0
+  s0 <- mean_f_t_t3 / (s1 * s2)
+  
+  # Return s0
+  return(s0)
+}
+
+# Estimate survival for 2yo and 1yo juveniles
+data.frame(logArea_t0 = c(S_2yo, S_1yo))
+s2 <- exp(as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_2yo) / (1 + exp((as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_2yo)))
+s1 <- exp(as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_1yo) / (1 + exp((as.numeric(coef(sur_area_glm)[1]) + as.numeric(coef(sur_area_glm)[2]) * S_1yo)))
 
 # Start with s0 derived from k = 0.2
 s0s[[1]] <- get.s0(params$k.berries, s1, s2)
@@ -1495,7 +1497,23 @@ params$s0 <- s0s[[length(s0s)]]
 
 # Build final IPM ---------------------------------------------------------
 # Final params
-final_params <- params
+final_params <- data.frame(
+  sur.int    = summary(sur_area_glm)$coefficients[1,1],
+  sur.slope  = summary(sur_area_glm)$coefficients[2,1],
+  gro.int    = summary(gro_abs_area_quad_lm)$coefficients[1,1],
+  gro.slope  = summary(gro_abs_area_quad_lm)$coefficients[2,1],
+  gro.slope2 = summary(gro_abs_area_quad_lm)$coefficients[3,1],
+  gro.sd     = sd(resid(gro_abs_area_quad_lm)),
+  fru.int        = summary(fru_area_ht_glm)$coefficients[1,1],
+  fru.area.slope = summary(fru_area_ht_glm)$coefficients[2,1],
+  fru.ht.slope   = summary(fru_area_ht_glm)$coefficients[3,1],
+  k.berries      = k, 
+  s0             = s0_initial,  
+  rec.area.mean  = S_1yo,
+  rec.area.sd    = S_1yo_sd,
+  rec.ht.mean    = mean(wrangled_by_yr_df$Height),
+  rec.ht.sd      = sd(wrangled_by_yr_df$Height)
+)
 
 # Build and plot final IPM with 50 meshpoints
 outputs <- build.ipm(params = final_params, mesh = 50, ref_ht = final_params$rec.ht.mean)
@@ -1812,49 +1830,49 @@ for(mesh in meshes){
 write.csv(traits_sens_mesh_df, "Mesh sensitivities.csv")
 
 # Plot traits against number of mesh points
-Fig_S8a <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = Lambda)) +
+Fig_S9a <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = Lambda)) +
   labs(x = "", y = "λ") +
   geom_line() +
   theme_bw() +
   theme(axis.title = element_text(size = 15))
-Fig_S8a
-Fig_S8b <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = R0)) +
+Fig_S9a
+Fig_S9b <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = R0)) +
   labs(x = "", y = expression("R"["0"])) +
   geom_line() +
   theme_bw() +
   theme(axis.title = element_text(size = 15))
-Fig_S8b
-Fig_S8c <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = GenTfun)) +
+Fig_S9b
+Fig_S9c <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = GenTfun)) +
   labs(x = "", y = "T") +
   geom_line() +
   theme_bw() +
   theme(axis.title = element_text(size = 15))
-Fig_S8c
-Fig_S8d <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = Lmean)) +
+Fig_S9c
+Fig_S9d <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = Lmean)) +
   labs(x = "", y = expression(eta["e"])) +
   geom_line() +
   theme_bw() +
   theme(axis.title = element_text(size = 15))
-Fig_S8d
-Fig_S8e <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = La)) +
+Fig_S9d
+Fig_S9e <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = La)) +
   labs(x = "Total meshpoints", y = expression("L"[alpha])) +
   geom_line() +
   theme_bw() +
   theme(axis.title = element_text(size = 15))
-Fig_S8e
-Fig_S8f <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = Lamean)) +
+Fig_S9e
+Fig_S9f <- ggplot(data = traits_sens_mesh_df, aes(x = (mesh*mesh), y = Lamean)) +
   labs(x = "Total meshpoints", y = expression(paste("L"[paste(alpha,"-",omega)]))) +
   geom_line() +
   theme_bw()+
   theme(axis.title = element_text(size = 15))
-Fig_S8f
+Fig_S9f
 
-Fig_S8 <- (Fig_S8a + Fig_S8b) / (Fig_S8c + Fig_S8d) / (Fig_S8e + Fig_S8f)
-Fig_S8
-ggsave("Figure S8.png", Fig_S8)
+Fig_S9 <- (Fig_S9a + Fig_S9b) / (Fig_S9c + Fig_S9d) / (Fig_S9e + Fig_S9f)
+Fig_S9
+ggsave("Figure S9.png", Fig_S9)
 
-# Sensitivity of choice of lambda - previously chosen method -------------------------------------------
-# Make data frame for sensitivity of traits to lambda choice
+# Sensitivity of choice of lambda - alternative method -------------------------------------------
+# Make data frame for sensitivity of traits to lambda choice - for alternative method
 sens_lambda_df <- data.frame(lambda = c(1.1, 1.05, 1.15), 
                              s0 = signif(c(params$s0, NA, NA), 3),
                              GenTfun = NA,
@@ -1987,7 +2005,7 @@ parameter_labels <- c(
 )
 
 # Create the bar plot
-Fig_S9 <- ggplot(sens_lambda_df_long, aes(x = lambda, y = Value, fill = as.factor(lambda))) +
+Fig_S10 <- ggplot(sens_lambda_df_long, aes(x = lambda, y = Value, fill = as.factor(lambda))) +
   geom_bar(stat = "identity", position = "dodge") +
   labs(x = "Population growth rate λ") +
   facet_wrap(~ Parameter, scales = "free_y", labeller = labeller(Parameter = parameter_labels)) + 
@@ -1998,8 +2016,8 @@ Fig_S9 <- ggplot(sens_lambda_df_long, aes(x = lambda, y = Value, fill = as.facto
         axis.title.y = element_text(size = 14),
         axis.text.x = element_text(size = 14)) +
   scale_fill_manual(values = c("1.10" = "grey", "1.05" = colours(6)[4], "1.15" = colours(6)[1]))
-Fig_S9
-ggsave("Figure S9.png", Fig_S9)
+Fig_S10
+ggsave("Figure S10.png", Fig_S10)
 
 # Sensitivity to berry production form ------------------------------------
 
@@ -2012,13 +2030,13 @@ k <- 2000*(1+exp((-1)*(log(10000)-0.5*(max_size + min_size_rep))))
 # Plot berry number against size for logistic relationship
 sizes <- seq(min_size, max_size, length.out = 50)
 berry_nos <- k / (1 + exp((-1) * (sizes - 0.5 * (max_size + min_size_rep))))
-Fig_S10 <- ggplot(data = data.frame(sizes, berry_nos), aes(x = sizes, y = berry_nos)) +
+Fig_S11 <- ggplot(data = data.frame(sizes, berry_nos), aes(x = sizes, y = berry_nos)) +
   geom_line(col = colours(6)[3], size = 2) +
   theme_bw() +
   labs(x = xl, y = "Number of berries") +
   theme(axis.title = element_text(size = 15))
-Fig_S10
-ggsave("Figure S10.png", Fig_S10)
+Fig_S11
+ggsave("Figure S11.png", Fig_S11)
 
 # Amend IPM function to include logistic berry production
 build.ipm.logistic <- function(params, mesh, ref_ht){
@@ -2240,7 +2258,7 @@ exp_vs_log_df <- data.frame(Berry_model = c(rep("Exponential", 6), rep("Logistic
 write.csv(exp_vs_log_df, "Functional_form_sensitivity.csv")
 
 # Plot traits for exponential and logistic functional forms
-Fig_S11 <- ggplot(data = exp_vs_log_df, aes(x = Trait, y = Value, fill = Berry_model)) +
+Fig_S12 <- ggplot(data = exp_vs_log_df, aes(x = Trait, y = Value, fill = Berry_model)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.6) +
   geom_hline(yintercept = 0, linetype = "dashed", color = "black") +
   labs(y = "Value", x = "IPM output", fill = "Berry production function") +
@@ -2262,8 +2280,8 @@ Fig_S11 <- ggplot(data = exp_vs_log_df, aes(x = Trait, y = Value, fill = Berry_m
     legend.position = c(0.8,0.8)
   ) +
   scale_fill_manual(values = c("Exponential" = colours(6)[3], "Logistic" = colours(6)[2]))
-Fig_S11
-ggsave("Figure S11.png", Fig_S11)
+Fig_S12
+ggsave("Figure S12.png", Fig_S12)
 
 # Plot IPM at different heights -------------------------------------------
 # Reset parameters
@@ -2278,22 +2296,22 @@ hts <- c(params$rec.ht.mean - 2 * params$rec.ht.sd,
 
 # Plot IPMs
 # outputs <- build.ipm(params = params, mesh = 50, ref_ht = hts[1])
-Fig_S7a <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[1], mesh = outputs[["mesh"]])
-Fig_S7a
-ggsave("Figure S7a.png", Fig_S7a)
+Fig_S8a <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[1], mesh = outputs[["mesh"]])
+Fig_S8a
+ggsave("Figure S8a.png", Fig_S8a)
 outputs <- build.ipm(params = params, mesh = 50, ref_ht = hts[2])
-Fig_S7b <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[2], mesh = outputs[["mesh"]])
-Fig_S7b
-ggsave("Figure S7b.png", Fig_S7b)
+Fig_S8b <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[2], mesh = outputs[["mesh"]])
+Fig_S8b
+ggsave("Figure S8b.png", Fig_S8b)
 outputs <- build.ipm(params = params, mesh = 50, ref_ht = hts[3])
-Fig_S7c <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[3], mesh = outputs[["mesh"]])
-Fig_S7c
-ggsave("Figure S7c.png", Fig_S7c)
+Fig_S8c <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[3], mesh = outputs[["mesh"]])
+Fig_S8c
+ggsave("Figure S8c.png", Fig_S8c)
 outputs <- build.ipm(params = params, mesh = 50, ref_ht = hts[4])
-Fig_S7d <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[4], mesh = outputs[["mesh"]])
-Fig_S7d
-ggsave("Figure S7d.png", Fig_S7d)
+Fig_S8d <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[4], mesh = outputs[["mesh"]])
+Fig_S8d
+ggsave("Figure S8d.png", Fig_S8d)
 outputs <- build.ipm(params = params, mesh = 50, ref_ht = hts[5])
-Fig_S7e <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[5], mesh = outputs[["mesh"]])
-Fig_S7e
-ggsave("Figure S7e.png", Fig_S7e)
+Fig_S8e <- plot.ipm(P_kernel = outputs[["P"]], F_kernel = outputs[["F"]], ref_ht = hts[5], mesh = outputs[["mesh"]])
+Fig_S8e
+ggsave("Figure S8e.png", Fig_S8e)
