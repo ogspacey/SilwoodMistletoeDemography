@@ -155,8 +155,10 @@ delete_Carlina_vulgaris <- c(242178) # Retain 242187 (longer duration)
 delete_Chamaedorea_radicalis <- c(246265) # Retain 246232 (longer duration)       
 delete_Cirsium_perplexans <- c(242360) # Retain 242359 (larger matrix)         
 delete_Cirsium_pitcheri <- c(242367, 242373, 242413) # Retain 242422 (longer duration)             
-delete_Cirsium_tracyi <- c(242472) # Retain 242471 (larger matrix)               
-delete_Cypripedium_calceolus <- c(242609, 242624) # Retain 242581 (longer duration)       
+delete_Cirsium_tracyi <- c(242472) # Retain 242471 (larger matrix)   
+delete_Crepidium_acuminatum <- c(252927) # Retain 252921 (same publication, equal in study duration and dimension) 
+delete_Cypripedium_calceolus <- c(242609, 242624) # Retain 242581 (longer duration) 
+delete_Dactylorhiza_hatagirea <- c(252916) # Retain 252905 (same publication, second matrix incorrectly labels dormant stage as active)
 delete_Dactylorhiza_lapponica <- c(242656) # Retain 242663 (longer duration)      
 delete_Digitalis_purpurea <- c(242803) # Retain 242802 (longer duration)         
 delete_Dracocephalum_austriacum <- c(238541) # Retain 242856 (longer duration)   
@@ -208,8 +210,10 @@ deleteDuplicateStudies <- c(
   delete_Chamaedorea_radicalis,         
   delete_Cirsium_perplexans,            
   delete_Cirsium_pitcheri,              
-  delete_Cirsium_tracyi,                
-  delete_Cypripedium_calceolus,         
+  delete_Cirsium_tracyi,
+  delete_Crepidium_acuminatum, 
+  delete_Cypripedium_calceolus,
+  delete_Dactylorhiza_hatagirea,
   delete_Dactylorhiza_lapponica,        
   delete_Digitalis_purpurea,            
   delete_Dracocephalum_austriacum,      
@@ -530,13 +534,13 @@ for (i in allLHTs){
 # Traits left unaltered:
 # Lambda, R0
 
-# Figure S10
+# Figure S14
 # Traits to be log-transformed:
 # GenTfun
 output$GenTfun <- log(output$GenTfun)
 hist(output$GenTfun, breaks = 10, main = "Generation time", xlab = "Log-transformed generation time (years)")
 
-#Lmean
+# Lmean
 output$Lmean <- log(output$Lmean)
 
 # Remove non-positive values and -Inf as due to calculation errors
@@ -580,6 +584,8 @@ output$SpeciesAccepted[which(output$SpeciesAccepted == "Eriogonum longifolium va
 output$SpeciesAccepted[which(output$SpeciesAccepted == "Oenothera coloradensis subsp. coloradensis")] <- "Oenothera coloradensis"
 output$SpeciesAccepted[which(output$SpeciesAccepted == "Lespedeza juncea var. sericea")]              <- "Lespedeza juncea"
 output$SpeciesAccepted[which(output$SpeciesAccepted == "Petrocoptis pyrenaica subsp. pseudoviscosa")] <- "Petrocoptis pyrenaica"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Erycina Erycina crista-galli")]               <- "Erycina crista-galli"
+output$SpeciesAccepted[which(output$SpeciesAccepted == "Platanthera Platanthera orbiculata")]         <- "Platanthera orbiculata"
 
 # Re-attempt to match names
 output_species_resolved <- tnrs_match_names(output$SpeciesAccepted)
@@ -608,7 +614,7 @@ rownames(output_species_resolved) <- output_species_resolved$search_string
 # Rename rows to accepted names
 rownames(output) <- output$SpeciesAccepted
 
-# Select species which have update names
+# Select species which have updated names
 mismatched_sp <- subset(output, output$SpeciesAccepted %in% output_species_resolved$unique_name == FALSE)$SpeciesAccepted
 
 # Rename to accepted names
@@ -698,13 +704,12 @@ diag.panel <- function(x, ...) {
 }
 
 
-# Plotting the correlation matrix
-Fig_S14 <- pairs(output[, LHTs],
+# Plotting the correlation matrix - Figure S15
+Fig_S15 <- pairs(output[, LHTs],
                  labels = rep("", length(LHTs)),
                  upper.panel = panel.cor,
                  lower.panel = panel.smooth,
                  diag.panel = diag.panel)
-Fig_S14
 
 # Correlation in absolute terms
 corr <- abs(cor(output[, LHTs], use = "complete.obs"))
@@ -979,25 +984,26 @@ PCA_plot <- ggplot(data = pca_data, aes(x = PC1, y = PC2)) +
     axis.title = element_text(size = 14, face = "bold")
   )
 
-# Manually add each expression using annotate()
-for (i in seq_along(LHTSymbols)) {
-  PCA_plot <- PCA_plot + annotate(
-    "text",
-    x = pca_rotations$PC1[i] * 5.5,
-    y = pca_rotations$PC2[i] * 5.5,
-    label = LHTSymbols[[i]],
-    color = "black",
-    size = 6,
-    parse = TRUE
-  )
-}
+PCA_plot
 
+# Manually add each expression using annotate()
+# for (i in seq_along(LHTSymbols)) {
+#   PCA_plot <- PCA_plot + annotate(
+#     "text",
+#     x = pca_rotations$PC1[i] * 5.5,
+#     y = pca_rotations$PC2[i] * 5.5,
+#     label = LHTSymbols[[i]],
+#     color = "black",
+#     size = 6,
+#     parse = TRUE
+#   )
+# }
 
 # PCA with phylogeny
 # Scale values because phyl.pca does not do it, and otherwise PCA is very stretched out on PC1
 outputPhyl <- imputedOutput
 for (i in LHTs){
-  outputPhyl[,i]  <- scale(outputPhyl[,i], center= T, scale = T)
+  outputPhyl[,i]  <- scale(outputPhyl[,i], center = T, scale = T)
 }
 
 rownames(outputPhyl) <- outputPhyl$SpeciesAccepted
@@ -1008,7 +1014,7 @@ outputPhyl <- subset(outputPhyl, SpeciesAccepted %in% tree$tip.label)
 # Perform pPCA
 phyloPCA <- phyl.pca(tree, outputPhyl[, LHTs], method = "lambda")
 phyloPCA$lambda
-# Pagel's λ = 0.101
+# Pagel's λ = 0.122
 
 # Percentage variance explained
 variancePhyloPCA <- diag(phyloPCA$Eval)/sum(phyloPCA$Eval)
@@ -1048,18 +1054,18 @@ sil_df <- data.frame(
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Calocedrus macrolepis")$PC1*1.1,
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Sequoia sempervirens")$PC1,
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Escontria chiotilla")$PC1*1.2,
-          subset(phylo_pca_data, rownames(phylo_pca_data) == "Quercus mongolica subsp. crispula")$PC1*2,
+          subset(phylo_pca_data, rownames(phylo_pca_data) == "Quercus mongolica subsp. crispula")$PC1*2.5,
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Araucaria cunninghamii")$PC1),
-  PC2 = c(subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album")$PC2*5,
-          subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae")$PC2*6.5,
-          subset(phylo_pca_data, rownames(phylo_pca_data) == "Helianthus divaricatus")$PC2*4.5,
+  PC2 = c(subset(phylo_pca_data, rownames(phylo_pca_data) == "Viscum album")$PC2*3.5,
+          subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae")$PC2*10.5,
+          subset(phylo_pca_data, rownames(phylo_pca_data) == "Helianthus divaricatus")$PC2*2,
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Brassica napus")$PC2*(-3),
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Abies magnifica")$PC2,
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Calocedrus macrolepis")$PC2*1.1,
-          subset(phylo_pca_data, rownames(phylo_pca_data) == "Sequoia sempervirens")$PC2*1.2,
-          subset(phylo_pca_data, rownames(phylo_pca_data) == "Escontria chiotilla")$PC2*0.8,
+          subset(phylo_pca_data, rownames(phylo_pca_data) == "Sequoia sempervirens")$PC2*1.5,
+          subset(phylo_pca_data, rownames(phylo_pca_data) == "Escontria chiotilla")$PC2*1,
           subset(phylo_pca_data, rownames(phylo_pca_data) == "Quercus mongolica subsp. crispula")$PC2*1.1,
-          subset(phylo_pca_data, rownames(phylo_pca_data) == "Araucaria cunninghamii")$PC2*1.2),
+          subset(phylo_pca_data, rownames(phylo_pca_data) == "Araucaria cunninghamii")$PC2*1.4),
   uuid = c(viscum_uuid,
            pedicularis_uuid,
            helianthus_uuid,
@@ -1086,7 +1092,7 @@ img <- readPNG("Thesium_silhouette.png")
 grob_img <- rasterGrob(img, interpolate = TRUE)
 
 # Plot pPCA
-Fig_5 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
+Fig_4 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
   # Points for the PCA plot
   geom_point(color = alpha("black", 0.3), shape = 21, size = 2.3) +
   
@@ -1101,8 +1107,8 @@ Fig_5 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
   # Add custom Thesium silhouette
   annotation_custom(
     grob = grob_img,
-    xmin = -1.5, 
-    xmax = -1,  
+    xmin = -1, 
+    xmax = -0.5,  
     ymin = 1, 
     ymax = 2
   ) +
@@ -1153,13 +1159,13 @@ Fig_5 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
              aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
   geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Thesium subsucculentum"), 
-            aes(x = PC1 * 2.5, y = PC2 * -1.4, label = "italic('T. subsucculentum')"), parse = TRUE, 
+            aes(x = PC1 * 3, y = PC2 * -1.2, label = "italic('T. subsucculentum')"), parse = TRUE, 
             color = colours(6)[5], size = 5) +
   
   geom_point(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
              aes(x = PC1, y = PC2), color = colours(6)[5], size = 3) +
   geom_text(data = subset(phylo_pca_data, rownames(phylo_pca_data) == "Pedicularis furbishiae"), 
-            aes(x = PC1 * 0.3, y = PC2 * 3.2, label = "italic('P. furbishiae')"), parse = TRUE, 
+            aes(x = PC1 * 0.3, y = PC2 * 3.8, label = "italic('P. furbishiae')"), parse = TRUE, 
             color = colours(6)[5], size = 5) +
   
   
@@ -1176,19 +1182,22 @@ Fig_5 <- ggplot(data = phylo_pca_data, aes(x = PC1, y = PC2)) +
     axis.title = element_text(size = 14, face = "bold")
   )
 
-# Manually add each expression using annotate()
-for (i in seq_along(LHTSymbols)) {
-  Fig_5 <- Fig_5 + annotate(
-    "text",
-    x = phyloPCA$L[,"PC1"][i]*5.5,
-    y = phyloPCA$L[,"PC2"][i]*5.5,
-    label = LHTSymbols[[i]],
-    color = "black",
-    size = 6,
-    parse = TRUE
-  )
-}
+Fig_4
+ggsave("Figure 4.png", Fig_4)
 
-Fig_5
-ggsave("Figure 5.png", Fig_5)
+# Manually add each expression using annotate()
+# for (i in seq_along(LHTSymbols)) {
+#   Fig_4 <- Fig_4 + annotate(
+#     "text",
+#     x = phyloPCA$L[,"PC1"][i]*5.5,
+#     y = phyloPCA$L[,"PC2"][i]*5.5,
+#     label = LHTSymbols[[i]],
+#     color = "black",
+#     size = 6,
+#     parse = TRUE
+#   )
+# }
+# 
+# Fig_4
+# ggsave("Figure 4.png", Fig_4)
 
