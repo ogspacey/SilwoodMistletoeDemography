@@ -1703,7 +1703,10 @@ for(i in 1:nrow(traits_sens_params_df)){
 }
 
 # Export trait sensitivity
-write.csv(traits_sens_df, "Parameter sensitivities")
+write.csv(traits_sens_df, "Parameter_sensitivities.csv")
+
+# Re-load trait sensitivities
+traits_sens_df <- read.csv("Parameter_sensitivities.csv")
 
 # Plot sensitivities
 # Convert to long format
